@@ -1,0 +1,14 @@
+---
+description: Core ML tips
+globs: 
+alwaysApply: false
+---
+
+# Your rule content
+
+- You can @ files here
+- You can use markdown but dont have to
+Start with pre-trained models before customizing
+Consider on-device vs. cloud processing tradeoffs
+Test with a variety of food images for accuracy
+Build a feedback mechanism to improve recognition

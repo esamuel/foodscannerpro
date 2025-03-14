@@ -1,0 +1,15 @@
+---
+description: swift-best-prectices
+globs: 
+alwaysApply: false
+---
+
+# Your rule content
+
+- You can @ files here
+- You can use markdown but dont have to
+Use SwiftUI for modern UI implementation
+Implement MVVM architecture for clean separation of concerns
+Leverage async/await for network calls when possible
+Use proper error handling throughout the app
+Document public APIs with comments

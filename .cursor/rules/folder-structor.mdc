@@ -1,0 +1,42 @@
+---
+description: foler structor
+globs: 
+alwaysApply: false
+---
+
+# Your rule content
+
+- You can @ files here
+- You can use markdown but dont have to
+FoodScanner/
+├── App/
+│   ├── FoodScannerApp.swift
+│   └── AppDelegate.swift
+├── Models/
+│   ├── FoodItem.swift
+│   ├── Meal.swift
+│   └── HealthWarning.swift
+├── Views/
+│   ├── Camera/
+│   │   ├── CameraView.swift
+│   │   └── CameraPreviewView.swift
+│   ├── Results/
+│   │   ├── FoodItemsView.swift
+│   │   └── NutritionDetailsView.swift
+│   └── History/
+│       ├── HistoryView.swift
+│       └── StatisticsView.swift
+├── ViewModels/
+│   ├── FoodScannerViewModel.swift
+│   └── HistoryViewModel.swift
+├── Services/
+│   ├── FoodRecognitionService.swift
+│   ├── NutritionService.swift
+│   └── DataPersistenceService.swift
+├── Utils/
+│   ├── ImageProcessor.swift
+│   └── DateFormatter.swift
+└── Resources/
+    ├── Assets.xcassets
+    └── CoreML/
+        └── FoodClassifier.mlmodel

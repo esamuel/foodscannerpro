@@ -1,0 +1,13 @@
+---
+description: specific tips
+globs: 
+alwaysApply: false
+---
+
+# Your rule content
+
+Use "// MARK: -" comments for better code navigation
+Set up code snippets for common Swift patterns
+Organize imports at the top of each file
+Use extensions to keep classes focused and clean
+Create reusable components for UI elements
