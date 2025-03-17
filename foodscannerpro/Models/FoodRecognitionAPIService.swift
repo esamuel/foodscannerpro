@@ -8,8 +8,8 @@ class FoodRecognitionAPIService {
     private let logMealEndpoint = "https://api.logmeal.es/v2/recognition/dish"
     
     // API keys (replace with your actual keys)
-    private let clarifaiAPIKey = "YOUR_CLARIFAI_API_KEY"
-    private let logMealAPIKey = "YOUR_LOGMEAL_API_KEY"
+    private let clarifaiAPIKey = "YOUR_CLARIFAI_API_KEY" // TODO: Replace with actual Clarifai API key
+    private let logMealAPIKey = "YOUR_LOGMEAL_API_KEY" // TODO: Replace with actual LogMeal API key
     
     // Recognize food in an image using external APIs
     func recognizeFood(image: UIImage, completion: @escaping (Result<[(identifier: String, confidence: Float)], Error>) -> Void) {

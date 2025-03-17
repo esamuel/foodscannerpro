@@ -12,7 +12,7 @@ class NutritionService: ObservableObject {
     @Published var lastError: String?
     
     /// USDA API Key - Replace with your actual API key
-    private let apiKey = "DEMO_KEY" // Get your key from https://fdc.nal.usda.gov/api-key-signup.html
+    private let apiKey = "DEMO_KEY" // TODO: Replace with your key from https://fdc.nal.usda.gov/api-key-signup.html
     private let baseURL = "https://api.nal.usda.gov/fdc/v1"
     
     /// Cache for storing nutrition data

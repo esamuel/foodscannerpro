@@ -1,0 +1,4 @@
+# Files to exclude from the build
+README.md
+Resources/CoreML/MODELS_README.md
+SETUP.md 

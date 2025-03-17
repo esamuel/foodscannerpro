@@ -150,7 +150,7 @@ struct ContentView: View {
     }
 }
 
-struct ImagePicker: UIViewControllerRepresentable {
+struct GalleryImagePicker: UIViewControllerRepresentable {
     @Binding var image: UIImage?
     @Environment(\.dismiss) private var dismiss
     
@@ -174,9 +174,9 @@ struct ImagePicker: UIViewControllerRepresentable {
     }
     
     class Coordinator: NSObject, PHPickerViewControllerDelegate {
-        let parent: ImagePicker
+        let parent: GalleryImagePicker
         
-        init(_ parent: ImagePicker) {
+        init(_ parent: GalleryImagePicker) {
             self.parent = parent
         }
         
@@ -470,7 +470,7 @@ struct HomeView: View {
             }
             .navigationTitle("Food Scanner Pro")
             .sheet(isPresented: $showingImagePicker) {
-                ImagePicker(image: $selectedImage)
+                GalleryImagePicker(image: $selectedImage)
             }
             .sheet(isPresented: $showingPreview) {
                 if let image = selectedImage {

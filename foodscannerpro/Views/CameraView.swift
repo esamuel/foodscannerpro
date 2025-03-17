@@ -8,6 +8,7 @@ struct CameraView: View {
     @State private var showingSettings = false
     @State private var recognitionMode: RecognitionMode = .standard
     @State private var capturedImage: UIImage?
+    @State private var showingRecognition = false
     
     var body: some View {
         NavigationView {
@@ -34,7 +35,8 @@ struct CameraView: View {
                             cameraManager.capturePhoto { image in
                                 if let image = image {
                                     capturedImage = image
-                                    // Process the captured image
+                                    // Show the recognition view with the captured image
+                                    showingRecognition = true
                                 }
                             }
                         }) {
@@ -63,9 +65,18 @@ struct CameraView: View {
             .sheet(isPresented: $showingSettings) {
                 RecognitionSettingsView(selectedMode: $recognitionMode)
             }
+            .fullScreenCover(isPresented: $showingRecognition) {
+                if let image = capturedImage {
+                    FoodRecognitionView(image: image, classifier: FoodClassifier(), rootIsPresented: $showingRecognition, tabSelection: $tabSelection)
+                }
+            }
             .onAppear {
-                // The CameraManager initializes and sets up the camera in its init method
-                // No need to call additional setup methods
+                // Start the camera when the view appears
+                cameraManager.start()
+            }
+            .onDisappear {
+                // Stop the camera when the view disappears
+                cameraManager.stop()
             }
         }
     }
