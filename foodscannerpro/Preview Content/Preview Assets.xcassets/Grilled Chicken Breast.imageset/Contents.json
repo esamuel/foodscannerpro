@@ -1,11 +1,11 @@
 {
   "images" : [
     {
+      "filename" : "Grilled Chicken Breast.jpeg",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "protein.jpeg",
       "idiom" : "universal",
       "scale" : "2x"
     },
