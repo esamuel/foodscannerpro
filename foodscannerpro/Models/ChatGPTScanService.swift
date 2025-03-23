@@ -18,15 +18,22 @@ struct ChatGPTScanResult: Identifiable, Hashable {
     var asNutritionInfo: FoodNutritionInfo {
         return FoodNutritionInfo(
             foodName: foodName,
-            calories: calories,
+            calories: Int(calories),
             protein: protein,
             carbs: carbs,
-            fats: fats,
-            sugar: 0,  // Not provided in scan
-            fiber: 0,  // Not provided in scan
-            sodium: 0, // Not provided in scan
-            cholesterol: 0, // Not provided in scan
-            servingSize: servingSize ?? "1 serving"
+            fat: fats,
+            fiber: 0,
+            sugar: 0,
+            sodium: 0,
+            cholesterol: 0,
+            potassium: 0,
+            calcium: 0,
+            iron: 0,
+            vitaminA: 0,
+            vitaminC: 0,
+            servingSize: Double(servingSize?.replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression) ?? "0"),
+            servingUnit: "g",
+            source: .userProvided
         )
     }
     
@@ -178,7 +185,7 @@ class ChatGPTScanService: ObservableObject {
             return
         }
         
-        let base64Image = imageData.base64EncodedString()
+        _ = imageData.base64EncodedString()
         
         // This would be where you'd make an API call to a service that can analyze the image
         // For now, we'll just use the simulation
