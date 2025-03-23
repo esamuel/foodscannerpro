@@ -5,10 +5,13 @@ struct CameraView: View {
     @Binding var tabSelection: Int
     @Environment(\.dismiss) private var dismiss
     @StateObject private var cameraManager = CameraManager()
+    @StateObject private var chatGPTScanService = ChatGPTScanService()
     @State private var showingSettings = false
     @State private var recognitionMode: RecognitionMode = .standard
     @State private var capturedImage: UIImage?
     @State private var showingRecognition = false
+    @State private var showingChatGPTScan = false
+    @State private var isGalleryPickerPresented = false
     
     var body: some View {
         NavigationView {
@@ -21,42 +24,88 @@ struct CameraView: View {
                         .edgesIgnoringSafeArea(.all)
                     
                     // Camera controls
-                    HStack {
-                        Button(action: dismiss.callAsFunction) {
-                            Image(systemName: "xmark")
-                                .font(.title)
-                                .foregroundColor(.white)
-                                .padding()
-                        }
-                        
-                        Spacer()
-                        
-                        Button(action: {
-                            cameraManager.capturePhoto { image in
-                                if let image = image {
-                                    capturedImage = image
-                                    // Show the recognition view with the captured image
-                                    showingRecognition = true
+                    VStack(spacing: 20) {
+                        // Mode selector buttons
+                        HStack(spacing: 20) {
+                            // Gallery button
+                            Button(action: {
+                                isGalleryPickerPresented = true
+                            }) {
+                                VStack {
+                                    Image(systemName: "photo.on.rectangle")
+                                        .font(.system(size: 20))
+                                    Text("Gallery")
+                                        .font(.caption2)
                                 }
+                                .foregroundColor(.white)
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                                .background(Color.black.opacity(0.5))
+                                .cornerRadius(10)
                             }
-                        }) {
-                            Circle()
-                                .fill(Color.white)
-                                .frame(width: 70, height: 70)
-                                .overlay(
-                                    Circle()
-                                        .stroke(Color.white.opacity(0.8), lineWidth: 2)
-                                        .frame(width: 80, height: 80)
-                                )
+                            
+                            // ChatGPT Scan button
+                            Button(action: {
+                                // Capture image and show ChatGPT scan
+                                cameraManager.capturePhoto { image in
+                                    if let image = image {
+                                        capturedImage = image
+                                        showingChatGPTScan = true
+                                    }
+                                }
+                            }) {
+                                VStack {
+                                    Image(systemName: "brain")
+                                        .font(.system(size: 20))
+                                    Text("AI Scan")
+                                        .font(.caption2)
+                                }
+                                .foregroundColor(.white)
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                                .background(Color.purple.opacity(0.7))
+                                .cornerRadius(10)
+                            }
                         }
                         
-                        Spacer()
-                        
-                        Button(action: { showingSettings = true }) {
-                            Image(systemName: "gear")
-                                .font(.title)
-                                .foregroundColor(.white)
-                                .padding()
+                        // Main camera controls
+                        HStack {
+                            Button(action: dismiss.callAsFunction) {
+                                Image(systemName: "xmark")
+                                    .font(.title)
+                                    .foregroundColor(.white)
+                                    .padding()
+                            }
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                cameraManager.capturePhoto { image in
+                                    if let image = image {
+                                        capturedImage = image
+                                        // Show the recognition view with the captured image
+                                        showingRecognition = true
+                                    }
+                                }
+                            }) {
+                                Circle()
+                                    .fill(Color.white)
+                                    .frame(width: 70, height: 70)
+                                    .overlay(
+                                        Circle()
+                                            .stroke(Color.white.opacity(0.8), lineWidth: 2)
+                                            .frame(width: 80, height: 80)
+                                    )
+                            }
+                            
+                            Spacer()
+                            
+                            Button(action: { showingSettings = true }) {
+                                Image(systemName: "gear")
+                                    .font(.title)
+                                    .foregroundColor(.white)
+                                    .padding()
+                            }
                         }
                     }
                     .padding(.bottom)
@@ -70,6 +119,19 @@ struct CameraView: View {
                     FoodRecognitionView(image: image, classifier: FoodClassifier(), rootIsPresented: $showingRecognition, tabSelection: $tabSelection)
                 }
             }
+            .fullScreenCover(isPresented: $showingChatGPTScan) {
+                if let image = capturedImage {
+                    ChatGPTScanView(image: image, scanService: chatGPTScanService, rootIsPresented: $showingChatGPTScan, tabSelection: $tabSelection)
+                }
+            }
+            .sheet(isPresented: $isGalleryPickerPresented) {
+                ImagePicker(selectedImage: $capturedImage, isPresented: $isGalleryPickerPresented) { success in
+                    if success, capturedImage != nil {
+                        // Default to regular recognition for gallery images
+                        showingRecognition = true
+                    }
+                }
+            }
             .onAppear {
                 // Start the camera when the view appears
                 cameraManager.start()
@@ -78,6 +140,49 @@ struct CameraView: View {
                 // Stop the camera when the view disappears
                 cameraManager.stop()
             }
+        }
+    }
+}
+
+// Add ImagePicker for gallery selection
+struct ImagePicker: UIViewControllerRepresentable {
+    @Binding var selectedImage: UIImage?
+    @Binding var isPresented: Bool
+    var onDismiss: (Bool) -> Void
+    
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.delegate = context.coordinator
+        picker.sourceType = .photoLibrary
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let parent: ImagePicker
+        
+        init(_ parent: ImagePicker) {
+            self.parent = parent
+        }
+        
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+            if let image = info[.originalImage] as? UIImage {
+                parent.selectedImage = image
+                parent.isPresented = false
+                parent.onDismiss(true)
+            } else {
+                parent.onDismiss(false)
+            }
+        }
+        
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.isPresented = false
+            parent.onDismiss(false)
         }
     }
 }
