@@ -1,25 +1,5 @@
 import SwiftUI
 
-struct NutritionBadge: View {
-    let label: String
-    let value: String
-    
-    var body: some View {
-        VStack(spacing: 4) {
-            Text(label)
-                .font(.caption)
-                .foregroundColor(.secondary)
-            Text(value)
-                .font(.system(.body, design: .rounded))
-                .fontWeight(.semibold)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .background(Color(.systemGray6))
-        .cornerRadius(8)
-    }
-}
-
 struct DetailRow: View {
     let label: String
     let value: String

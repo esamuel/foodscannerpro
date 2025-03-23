@@ -29,9 +29,15 @@ struct CameraPreviewView: UIViewRepresentable {
         view.videoPreviewLayer.session = session
         view.videoPreviewLayer.videoGravity = .resizeAspectFill
         
-        // Force the orientation to portrait
-        if view.videoPreviewLayer.connection?.isVideoOrientationSupported ?? false {
-            view.videoPreviewLayer.connection?.videoOrientation = .portrait
+        // Set video orientation based on iOS version
+        if #available(iOS 17.0, *) {
+            if view.videoPreviewLayer.connection?.isVideoRotationAngleSupported(0) ?? false {
+                view.videoPreviewLayer.connection?.videoRotationAngle = 0
+            }
+        } else {
+            if view.videoPreviewLayer.connection?.isVideoOrientationSupported ?? false {
+                view.videoPreviewLayer.connection?.videoOrientation = .portrait
+            }
         }
         
         print("Camera preview view created with bounds: \(view.bounds)")
@@ -39,9 +45,15 @@ struct CameraPreviewView: UIViewRepresentable {
     }
     
     func updateUIView(_ uiView: PreviewView, context: Context) {
-        // Force the orientation to portrait
-        if uiView.videoPreviewLayer.connection?.isVideoOrientationSupported ?? false {
-            uiView.videoPreviewLayer.connection?.videoOrientation = .portrait
+        // Update video orientation based on iOS version
+        if #available(iOS 17.0, *) {
+            if uiView.videoPreviewLayer.connection?.isVideoRotationAngleSupported(0) ?? false {
+                uiView.videoPreviewLayer.connection?.videoRotationAngle = 0
+            }
+        } else {
+            if uiView.videoPreviewLayer.connection?.isVideoOrientationSupported ?? false {
+                uiView.videoPreviewLayer.connection?.videoOrientation = .portrait
+            }
         }
         
         print("Camera preview layer updated with frame: \(uiView.frame)")

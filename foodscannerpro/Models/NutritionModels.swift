@@ -3,7 +3,7 @@ import Foundation
 // MARK: - Nutrition Models
 
 /// Represents comprehensive nutrition information for a food item
-struct NutritionInfo: Codable, Identifiable {
+struct FoodNutritionInfo: Codable, Identifiable {
     var id = UUID()
     let foodName: String
     let calories: Int

@@ -16,11 +16,11 @@ class NutritionService: ObservableObject {
     private let baseURL = "https://api.nal.usda.gov/fdc/v1"
     
     /// Cache for storing nutrition data
-    private var nutritionCache: [String: NutritionInfo] = [:]
+    private var nutritionCache: [String: FoodNutritionInfo] = [:]
     private let cacheFileName = "nutrition_cache.json"
     
     /// Fallback nutrition database for common foods
-    private var fallbackDatabase: [String: NutritionInfo] = [:]
+    private var fallbackDatabase: [String: FoodNutritionInfo] = [:]
     
     /// Cancellables for managing Combine subscriptions
     private var cancellables = Set<AnyCancellable>()
@@ -41,10 +41,9 @@ class NutritionService: ObservableObject {
     /// - Parameters:
     ///   - foodName: Name of the food to search for
     ///   - completion: Completion handler with nutrition info or error
-    func getNutritionInfo(for foodName: String, completion: @escaping (Result<NutritionInfo, Error>) -> Void) {
+    func getNutritionInfo(for foodName: String, completion: @escaping (Result<FoodNutritionInfo, Error>) -> Void) {
         // Check cache first
         if let cachedInfo = nutritionCache[foodName.lowercased()] {
-            print("Cache hit for \(foodName)")
             completion(.success(cachedInfo))
             return
         }
@@ -61,11 +60,8 @@ class NutritionService: ObservableObject {
                 completion(.success(nutritionInfo))
                 
             case .failure(let error):
-                print("USDA API error: \(error.localizedDescription)")
-                
                 // Try fallback database
                 if let fallbackInfo = self.getFallbackNutrition(for: foodName) {
-                    print("Using fallback data for \(foodName)")
                     completion(.success(fallbackInfo))
                 } else {
                     completion(.failure(error))
@@ -82,7 +78,7 @@ class NutritionService: ObservableObject {
     
     // MARK: - USDA API Methods
     
-    private func fetchFromUSDA(foodName: String, retryCount: Int, completion: @escaping (Result<NutritionInfo, Error>) -> Void) {
+    private func fetchFromUSDA(foodName: String, retryCount: Int, completion: @escaping (Result<FoodNutritionInfo, Error>) -> Void) {
         isLoading = true
         lastError = nil
         
@@ -121,7 +117,6 @@ class NutritionService: ObservableObject {
             if let error = error {
                 // Retry logic for network errors
                 if retryCount < self.maxRetryCount {
-                    print("Retrying USDA API request (\(retryCount + 1)/\(self.maxRetryCount))")
                     DispatchQueue.global().asyncAfter(deadline: .now() + 1.0) {
                         self.fetchFromUSDA(foodName: foodName, retryCount: retryCount + 1, completion: completion)
                     }
@@ -140,7 +135,6 @@ class NutritionService: ObservableObject {
                     // Retry with exponential backoff
                     if retryCount < self.maxRetryCount {
                         let delay = pow(2.0, Double(retryCount)) // Exponential backoff: 1, 2, 4 seconds
-                        print("Rate limited, retrying in \(delay) seconds (\(retryCount + 1)/\(self.maxRetryCount))")
                         DispatchQueue.global().asyncAfter(deadline: .now() + delay) {
                             self.fetchFromUSDA(foodName: foodName, retryCount: retryCount + 1, completion: completion)
                         }
@@ -197,14 +191,14 @@ class NutritionService: ObservableObject {
         }.resume()
     }
     
-    private func parseUSDAFood(_ food: USDAFood, originalQuery: String) -> NutritionInfo {
+    private func parseUSDAFood(_ food: USDAFood, originalQuery: String) -> FoodNutritionInfo {
         // Extract nutrients
         func getNutrientValue(id: Int) -> Double {
             return food.foodNutrients.first(where: { $0.nutrientId == id })?.value ?? 0
         }
         
         // Create nutrition info
-        return NutritionInfo(
+        return FoodNutritionInfo(
             foodName: food.description,
             calories: Int(getNutrientValue(id: NutrientIDs.calories)),
             protein: getNutrientValue(id: NutrientIDs.protein),
@@ -233,10 +227,8 @@ class NutritionService: ObservableObject {
         do {
             let data = try Data(contentsOf: cacheURL)
             let decoder = JSONDecoder()
-            nutritionCache = try decoder.decode([String: NutritionInfo].self, from: data)
-            print("Loaded \(nutritionCache.count) items from cache")
+            nutritionCache = try decoder.decode([String: FoodNutritionInfo].self, from: data)
         } catch {
-            print("Failed to load cache: \(error)")
             nutritionCache = [:]
         }
     }
@@ -248,9 +240,8 @@ class NutritionService: ObservableObject {
             let encoder = JSONEncoder()
             let data = try encoder.encode(nutritionCache)
             try data.write(to: cacheURL)
-            print("Saved \(nutritionCache.count) items to cache")
         } catch {
-            print("Failed to save cache: \(error)")
+            // Handle error silently
         }
     }
     
@@ -258,94 +249,43 @@ class NutritionService: ObservableObject {
         guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
             return nil
         }
-        
         return documentsDirectory.appendingPathComponent(cacheFileName)
     }
     
-    // MARK: - Fallback Database
-    
-    private func setupFallbackDatabase() {
-        // Common fruits
-        fallbackDatabase["apple"] = NutritionInfo(foodName: "Apple", calories: 52, protein: 0.3, carbs: 14, fat: 0.2, fiber: 2.4, source: .fallback)
-        fallbackDatabase["banana"] = NutritionInfo(foodName: "Banana", calories: 89, protein: 1.1, carbs: 23, fat: 0.3, fiber: 2.6, source: .fallback)
-        fallbackDatabase["orange"] = NutritionInfo(foodName: "Orange", calories: 47, protein: 0.9, carbs: 12, fat: 0.1, fiber: 2.4, source: .fallback)
-        fallbackDatabase["strawberry"] = NutritionInfo(foodName: "Strawberry", calories: 32, protein: 0.7, carbs: 7.7, fat: 0.3, fiber: 2.0, source: .fallback)
-        fallbackDatabase["blueberry"] = NutritionInfo(foodName: "Blueberry", calories: 57, protein: 0.7, carbs: 14.5, fat: 0.3, fiber: 2.4, source: .fallback)
-        
-        // Common vegetables
-        fallbackDatabase["carrot"] = NutritionInfo(foodName: "Carrot", calories: 41, protein: 0.9, carbs: 10, fat: 0.2, fiber: 2.8, source: .fallback)
-        fallbackDatabase["broccoli"] = NutritionInfo(foodName: "Broccoli", calories: 34, protein: 2.8, carbs: 7, fat: 0.4, fiber: 2.6, source: .fallback)
-        fallbackDatabase["spinach"] = NutritionInfo(foodName: "Spinach", calories: 23, protein: 2.9, carbs: 3.6, fat: 0.4, fiber: 2.2, source: .fallback)
-        fallbackDatabase["potato"] = NutritionInfo(foodName: "Potato", calories: 77, protein: 2.0, carbs: 17, fat: 0.1, fiber: 2.2, source: .fallback)
-        fallbackDatabase["tomato"] = NutritionInfo(foodName: "Tomato", calories: 18, protein: 0.9, carbs: 3.9, fat: 0.2, fiber: 1.2, source: .fallback)
-        
-        // Common proteins
-        fallbackDatabase["chicken"] = NutritionInfo(foodName: "Chicken Breast", calories: 165, protein: 31, carbs: 0, fat: 3.6, source: .fallback)
-        fallbackDatabase["beef"] = NutritionInfo(foodName: "Beef", calories: 250, protein: 26, carbs: 0, fat: 17, source: .fallback)
-        fallbackDatabase["salmon"] = NutritionInfo(foodName: "Salmon", calories: 206, protein: 22, carbs: 0, fat: 13, source: .fallback)
-        fallbackDatabase["egg"] = NutritionInfo(foodName: "Egg", calories: 155, protein: 13, carbs: 1.1, fat: 11, source: .fallback)
-        fallbackDatabase["tofu"] = NutritionInfo(foodName: "Tofu", calories: 76, protein: 8, carbs: 2, fat: 4.2, source: .fallback)
-        
-        // Common grains
-        fallbackDatabase["rice"] = NutritionInfo(foodName: "White Rice", calories: 130, protein: 2.7, carbs: 28, fat: 0.3, fiber: 0.4, source: .fallback)
-        fallbackDatabase["bread"] = NutritionInfo(foodName: "White Bread", calories: 265, protein: 9, carbs: 49, fat: 3.2, fiber: 2.7, source: .fallback)
-        fallbackDatabase["pasta"] = NutritionInfo(foodName: "Pasta", calories: 158, protein: 5.8, carbs: 31, fat: 0.9, fiber: 1.8, source: .fallback)
-        fallbackDatabase["oats"] = NutritionInfo(foodName: "Oats", calories: 389, protein: 16.9, carbs: 66, fat: 6.9, fiber: 10.6, source: .fallback)
-        fallbackDatabase["quinoa"] = NutritionInfo(foodName: "Quinoa", calories: 120, protein: 4.4, carbs: 21.3, fat: 1.9, fiber: 2.8, source: .fallback)
-        
-        // Common dairy
-        fallbackDatabase["milk"] = NutritionInfo(foodName: "Milk", calories: 42, protein: 3.4, carbs: 5, fat: 1, source: .fallback)
-        fallbackDatabase["cheese"] = NutritionInfo(foodName: "Cheddar Cheese", calories: 402, protein: 25, carbs: 1.3, fat: 33, source: .fallback)
-        fallbackDatabase["yogurt"] = NutritionInfo(foodName: "Yogurt", calories: 59, protein: 3.5, carbs: 5, fat: 3.3, source: .fallback)
-        
-        // Common prepared foods
-        fallbackDatabase["pizza"] = NutritionInfo(foodName: "Pizza", calories: 266, protein: 11, carbs: 33, fat: 10, source: .fallback)
-        fallbackDatabase["hamburger"] = NutritionInfo(foodName: "Hamburger", calories: 295, protein: 17, carbs: 30, fat: 14, source: .fallback)
-        fallbackDatabase["sandwich"] = NutritionInfo(foodName: "Sandwich", calories: 300, protein: 15, carbs: 35, fat: 12, source: .fallback)
-        fallbackDatabase["salad"] = NutritionInfo(foodName: "Garden Salad", calories: 20, protein: 1, carbs: 4, fat: 0.2, fiber: 1.5, source: .fallback)
-        fallbackDatabase["soup"] = NutritionInfo(foodName: "Vegetable Soup", calories: 75, protein: 2, carbs: 13, fat: 2, fiber: 2, source: .fallback)
-        
-        // Add more international foods
-        fallbackDatabase["sushi"] = NutritionInfo(foodName: "Sushi", calories: 150, protein: 6, carbs: 30, fat: 0.7, source: .fallback)
-        fallbackDatabase["taco"] = NutritionInfo(foodName: "Taco", calories: 210, protein: 9, carbs: 21, fat: 10, source: .fallback)
-        fallbackDatabase["curry"] = NutritionInfo(foodName: "Curry", calories: 230, protein: 7, carbs: 18, fat: 15, source: .fallback)
-        fallbackDatabase["burrito"] = NutritionInfo(foodName: "Burrito", calories: 340, protein: 14, carbs: 55, fat: 8, source: .fallback)
-        fallbackDatabase["falafel"] = NutritionInfo(foodName: "Falafel", calories: 333, protein: 13.3, carbs: 31.8, fat: 17.8, source: .fallback)
-        fallbackDatabase["hummus"] = NutritionInfo(foodName: "Hummus", calories: 166, protein: 7.9, carbs: 14.3, fat: 9.6, source: .fallback)
-        fallbackDatabase["pad thai"] = NutritionInfo(foodName: "Pad Thai", calories: 375, protein: 11, carbs: 45, fat: 17, source: .fallback)
-        
-        // Add desserts
-        fallbackDatabase["ice cream"] = NutritionInfo(foodName: "Ice Cream", calories: 207, protein: 3.5, carbs: 23.6, fat: 11, source: .fallback)
-        fallbackDatabase["chocolate"] = NutritionInfo(foodName: "Chocolate", calories: 546, protein: 4.9, carbs: 61, fat: 31, source: .fallback)
-        fallbackDatabase["cake"] = NutritionInfo(foodName: "Cake", calories: 257, protein: 4, carbs: 38, fat: 10, source: .fallback)
-        fallbackDatabase["cookie"] = NutritionInfo(foodName: "Cookie", calories: 148, protein: 1.5, carbs: 22, fat: 7, source: .fallback)
-        
-        print("Fallback database initialized with \(fallbackDatabase.count) items")
+    private func getFallbackNutrition(for foodName: String) -> FoodNutritionInfo? {
+        return fallbackDatabase[foodName.lowercased()]
     }
     
-    private func getFallbackNutrition(for foodName: String) -> NutritionInfo? {
-        let normalizedName = foodName.lowercased()
+    private func setupFallbackDatabase() {
+        // Fruits
+        fallbackDatabase["apple"] = FoodNutritionInfo(foodName: "Apple", calories: 52, protein: 0.3, carbs: 14, fat: 0.2, fiber: 2.4, source: .fallback)
+        fallbackDatabase["banana"] = FoodNutritionInfo(foodName: "Banana", calories: 89, protein: 1.1, carbs: 23, fat: 0.3, fiber: 2.6, source: .fallback)
+        fallbackDatabase["orange"] = FoodNutritionInfo(foodName: "Orange", calories: 47, protein: 0.9, carbs: 12, fat: 0.1, fiber: 2.4, source: .fallback)
+        fallbackDatabase["strawberry"] = FoodNutritionInfo(foodName: "Strawberry", calories: 32, protein: 0.7, carbs: 7.7, fat: 0.3, fiber: 2.0, source: .fallback)
+        fallbackDatabase["blueberry"] = FoodNutritionInfo(foodName: "Blueberry", calories: 57, protein: 0.7, carbs: 14.5, fat: 0.3, fiber: 2.4, source: .fallback)
         
-        // Try exact match first
-        if let exactMatch = fallbackDatabase[normalizedName] {
-            return exactMatch
-        }
+        // Vegetables
+        fallbackDatabase["carrot"] = FoodNutritionInfo(foodName: "Carrot", calories: 41, protein: 0.9, carbs: 10, fat: 0.2, fiber: 2.8, source: .fallback)
+        fallbackDatabase["broccoli"] = FoodNutritionInfo(foodName: "Broccoli", calories: 34, protein: 2.8, carbs: 7, fat: 0.4, fiber: 2.6, source: .fallback)
+        fallbackDatabase["spinach"] = FoodNutritionInfo(foodName: "Spinach", calories: 23, protein: 2.9, carbs: 3.6, fat: 0.4, fiber: 2.2, source: .fallback)
+        fallbackDatabase["potato"] = FoodNutritionInfo(foodName: "Potato", calories: 77, protein: 2.0, carbs: 17, fat: 0.1, fiber: 2.2, source: .fallback)
+        fallbackDatabase["tomato"] = FoodNutritionInfo(foodName: "Tomato", calories: 18, protein: 0.9, carbs: 3.9, fat: 0.2, fiber: 1.2, source: .fallback)
         
-        // Try partial match
-        for (key, value) in fallbackDatabase {
-            if normalizedName.contains(key) || key.contains(normalizedName) {
-                return value
-            }
-        }
+        // Proteins
+        fallbackDatabase["chicken"] = FoodNutritionInfo(foodName: "Chicken Breast", calories: 165, protein: 31, carbs: 0, fat: 3.6, source: .fallback)
+        fallbackDatabase["beef"] = FoodNutritionInfo(foodName: "Beef", calories: 250, protein: 26, carbs: 0, fat: 17, source: .fallback)
+        fallbackDatabase["salmon"] = FoodNutritionInfo(foodName: "Salmon", calories: 206, protein: 22, carbs: 0, fat: 13, source: .fallback)
+        fallbackDatabase["egg"] = FoodNutritionInfo(foodName: "Egg", calories: 155, protein: 13, carbs: 1.1, fat: 11, source: .fallback)
+        fallbackDatabase["tofu"] = FoodNutritionInfo(foodName: "Tofu", calories: 76, protein: 8, carbs: 2, fat: 4.2, source: .fallback)
         
-        // If no match found, create a generic entry
-        return NutritionInfo(
-            foodName: foodName.capitalized,
-            calories: 100,
-            protein: 5,
-            carbs: 15,
-            fat: 3,
-            source: .fallback
-        )
+        // Grains
+        fallbackDatabase["rice"] = FoodNutritionInfo(foodName: "White Rice", calories: 130, protein: 2.7, carbs: 28, fat: 0.3, fiber: 0.4, source: .fallback)
+        fallbackDatabase["bread"] = FoodNutritionInfo(foodName: "White Bread", calories: 265, protein: 9, carbs: 49, fat: 3.2, fiber: 2.7, source: .fallback)
+        fallbackDatabase["pasta"] = FoodNutritionInfo(foodName: "Pasta", calories: 158, protein: 5.8, carbs: 31, fat: 0.9, fiber: 1.8, source: .fallback)
+        fallbackDatabase["oats"] = FoodNutritionInfo(foodName: "Oats", calories: 389, protein: 16.9, carbs: 66, fat: 6.9, fiber: 10.6, source: .fallback)
+        fallbackDatabase["quinoa"] = FoodNutritionInfo(foodName: "Quinoa", calories: 120, protein: 4.4, carbs: 21.3, fat: 1.9, fiber: 2.8, source: .fallback)
+        
+        // Dairy
+        fallbackDatabase["milk"] = FoodNutritionInfo(foodName: "Milk", calories: 42, protein: 3.4, carbs: 5, fat: 1, source: .fallback)
     }
 } 

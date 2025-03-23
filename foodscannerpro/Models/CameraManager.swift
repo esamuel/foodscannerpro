@@ -39,7 +39,7 @@ class CameraManager: NSObject, ObservableObject {
     private var maxZoomFactor: CGFloat = 5.0
     private var currentDevice: AVCaptureDevice?
     
-    enum CameraError: Error {
+    enum CameraError: Error, LocalizedError {
         case cameraUnavailable
         case cannotAddInput
         case cannotAddOutput
@@ -48,6 +48,27 @@ class CameraManager: NSObject, ObservableObject {
         case zoomError
         case captureError
         case burstModeError
+        
+        var errorDescription: String? {
+            switch self {
+            case .cameraUnavailable:
+                return "Camera is not available on this device"
+            case .cannotAddInput:
+                return "Cannot add camera input"
+            case .cannotAddOutput:
+                return "Cannot add camera output"
+            case .permissionDenied:
+                return "Camera permission denied"
+            case .switchCameraError:
+                return "Failed to switch camera"
+            case .zoomError:
+                return "Failed to set zoom level"
+            case .captureError:
+                return "Failed to capture photo"
+            case .burstModeError:
+                return "Failed to capture burst photos"
+            }
+        }
     }
     
     override init() {
@@ -63,6 +84,8 @@ class CameraManager: NSObject, ObservableObject {
                     self?.cameraPermissionGranted = granted
                     if granted {
                         self?.setupCamera()
+                    } else {
+                        self?.error = .permissionDenied
                     }
                 }
             }
@@ -73,7 +96,8 @@ class CameraManager: NSObject, ObservableObject {
             self.cameraPermissionGranted = true
             setupCamera()
         @unknown default:
-            break
+            self.error = .permissionDenied
+            self.cameraPermissionGranted = false
         }
     }
     
@@ -85,91 +109,71 @@ class CameraManager: NSObject, ObservableObject {
             }
             
             // Remove all inputs and outputs
-            for input in session.inputs {
-                session.removeInput(input)
-            }
-            
-            for output in session.outputs {
-                session.removeOutput(output)
-            }
+            session.inputs.forEach { session.removeInput($0) }
+            session.outputs.forEach { session.removeOutput($0) }
             
             print("Setting up camera session...")
-            self.session.beginConfiguration()
+            session.beginConfiguration()
             
             // Setup initial camera input
-            if let cameraInput = try? createCameraInput(position: currentCamera) {
-                if self.session.canAddInput(cameraInput) {
-                    self.session.addInput(cameraInput)
-                    self.currentCameraInput = cameraInput
-                    self.currentDevice = cameraInput.device
-                    print("Added camera input: \(cameraInput.device.localizedName)")
-                    
-                    // Update max zoom factor based on device capabilities
-                    if let device = currentDevice {
-                        self.maxZoomFactor = min(device.activeFormat.videoMaxZoomFactor, 5.0)
-                        self.isFlashAvailable = device.hasFlash
-                    }
-                } else {
-                    print("Cannot add camera input")
-                }
-            } else {
-                print("Failed to create camera input")
+            guard let cameraInput = try createCameraInput(position: currentCamera) else {
+                throw CameraError.cannotAddInput
+            }
+            
+            guard session.canAddInput(cameraInput) else {
+                throw CameraError.cannotAddInput
+            }
+            
+            session.addInput(cameraInput)
+            currentCameraInput = cameraInput
+            currentDevice = cameraInput.device
+            print("Added camera input: \(cameraInput.device.localizedName)")
+            
+            // Update max zoom factor based on device capabilities
+            if let device = currentDevice {
+                maxZoomFactor = min(device.activeFormat.videoMaxZoomFactor, 5.0)
+                isFlashAvailable = device.hasFlash
             }
             
             // Configure photo output
-            output.isHighResolutionCaptureEnabled = true
-            if #available(iOS 13.0, *) {
-                output.maxPhotoQualityPrioritization = .quality
+            guard session.canAddOutput(output) else {
+                throw CameraError.cannotAddOutput
             }
             
-            if self.session.canAddOutput(output) {
-                self.session.addOutput(output)
-                print("Added photo output")
-                
-                // Configure output connection
-                if let connection = output.connection(with: .video) {
-                    if connection.isVideoOrientationSupported {
-                        connection.videoOrientation = .portrait
-                        print("Set video orientation to portrait")
-                    }
-                    if connection.isVideoMirroringSupported {
-                        connection.isVideoMirrored = currentCamera == .front
-                        print("Set video mirroring: \(currentCamera == .front)")
-                    }
+            session.addOutput(output)
+            print("Added photo output")
+            
+            // Configure output connection
+            if let connection = output.connection(with: .video) {
+                if connection.isVideoOrientationSupported {
+                    connection.videoOrientation = .portrait
                 }
-            } else {
-                print("Cannot add photo output")
+                
+                if connection.isVideoMirroringSupported {
+                    connection.isVideoMirrored = currentCamera == .front
+                }
             }
             
             // Set session preset for high quality photo capture
             if session.canSetSessionPreset(.photo) {
                 session.sessionPreset = .photo
-                print("Set session preset to photo")
             }
             
-            self.session.commitConfiguration()
+            session.commitConfiguration()
             print("Camera session configuration committed")
             
-            // Print debug info
-            print("Camera setup completed:")
-            print("- Current device: \(currentDevice?.localizedName ?? "None")")
-            print("- Flash available: \(isFlashAvailable)")
-            print("- Max zoom factor: \(maxZoomFactor)")
-            
-            // Start the session
-            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                guard let self = self else { return }
-                if !self.session.isRunning {
-                    print("Starting camera session after setup...")
-                    self.session.startRunning()
-                    print("Camera session started after setup")
-                }
+            // Start the session on the main thread
+            DispatchQueue.main.async { [weak self] in
+                self?.session.startRunning()
+                print("Camera session started running")
             }
             
-        } catch {
+        } catch let error as CameraError {
             print("Camera setup error: \(error.localizedDescription)")
+            self.error = error
+        } catch {
+            print("Unexpected camera setup error: \(error.localizedDescription)")
             self.error = .cameraUnavailable
-            return
         }
     }
     
@@ -177,26 +181,22 @@ class CameraManager: NSObject, ObservableObject {
         let deviceTypes: [AVCaptureDevice.DeviceType] = [.builtInWideAngleCamera, .builtInDualCamera, .builtInTripleCamera]
         let discoverySession = AVCaptureDevice.DiscoverySession(deviceTypes: deviceTypes, mediaType: .video, position: position)
         
-        print("Available devices: \(discoverySession.devices.map { $0.localizedName }.joined(separator: ", "))")
-        
         guard let device = discoverySession.devices.first else {
-            print("No camera device found")
             throw CameraError.cameraUnavailable
         }
         
-        print("Selected device: \(device.localizedName)")
-        
         do {
-            let input = try AVCaptureDeviceInput(device: device)
-            return input
+            return try AVCaptureDeviceInput(device: device)
         } catch {
-            print("Error creating camera input: \(error.localizedDescription)")
-            throw error
+            throw CameraError.cannotAddInput
         }
     }
     
     func switchCamera() {
-        guard let currentCameraInput = self.currentCameraInput else { return }
+        guard let currentCameraInput = self.currentCameraInput else {
+            self.error = .switchCameraError
+            return
+        }
         
         session.beginConfiguration()
         session.removeInput(currentCameraInput)
@@ -204,24 +204,28 @@ class CameraManager: NSObject, ObservableObject {
         currentCamera = currentCamera == .back ? .front : .back
         
         do {
-            if let newInput = try createCameraInput(position: currentCamera) {
-                if session.canAddInput(newInput) {
-                    session.addInput(newInput)
-                    self.currentCameraInput = newInput
-                    self.currentDevice = newInput.device
-                    
-                    // Update max zoom factor for new device
-                    self.maxZoomFactor = min(newInput.device.activeFormat.videoMaxZoomFactor, 5.0)
-                    // Reset zoom when switching cameras
-                    self.zoomFactor = 1.0
-                    setZoom(factor: 1.0)
-                    
-                    // Update flash availability
-                    self.isFlashAvailable = newInput.device.hasFlash
-                } else {
-                    throw CameraError.cannotAddInput
-                }
+            guard let newInput = try createCameraInput(position: currentCamera) else {
+                throw CameraError.cannotAddInput
             }
+            
+            guard session.canAddInput(newInput) else {
+                throw CameraError.cannotAddInput
+            }
+            
+            session.addInput(newInput)
+            self.currentCameraInput = newInput
+            self.currentDevice = newInput.device
+            
+            // Update max zoom factor for new device
+            self.maxZoomFactor = min(newInput.device.activeFormat.videoMaxZoomFactor, 5.0)
+            // Reset zoom when switching cameras
+            self.zoomFactor = 1.0
+            setZoom(factor: 1.0)
+            
+            // Update flash availability
+            self.isFlashAvailable = newInput.device.hasFlash
+            
+            session.commitConfiguration()
         } catch {
             self.error = .switchCameraError
             // Restore previous camera input
@@ -229,9 +233,8 @@ class CameraManager: NSObject, ObservableObject {
                 session.addInput(currentCameraInput)
                 self.currentDevice = currentCameraInput.device
             }
+            session.commitConfiguration()
         }
-        
-        session.commitConfiguration()
     }
     
     func toggleFlash() {
@@ -248,60 +251,38 @@ class CameraManager: NSObject, ObservableObject {
     }
     
     func start() {
-        // First check if we need to set up the camera
         if currentDevice == nil || currentCameraInput == nil {
-            print("No valid camera device or input, setting up camera first")
             setupCamera()
             return
         }
         
-        // Start the session on a background thread
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
             if !self.session.isRunning {
-                print("Starting camera session...")
                 self.session.startRunning()
-                
-                // Verify that the session is actually running
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    if self.session.isRunning {
-                        print("Camera session is confirmed running")
-                    } else {
-                        print("WARNING: Camera session failed to start, trying again...")
-                        self.setupCamera() // Try to set up the camera again
-                    }
-                }
-            } else {
-                print("Camera session is already running")
             }
         }
     }
     
     func stop() {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self = self else { return }
-            if self.session.isRunning {
-                print("Stopping camera session...")
-                self.session.stopRunning()
-                print("Camera session stopped")
-            }
+            self?.session.stopRunning()
         }
     }
     
     func setZoom(factor: CGFloat) {
-        guard let device = currentDevice else { return }
+        guard let device = currentDevice else {
+            self.error = .zoomError
+            return
+        }
         
         do {
             try device.lockForConfiguration()
-            
-            // Ensure zoom factor is within valid range
             let normalizedZoom = min(max(factor, minZoomFactor), maxZoomFactor)
             device.videoZoomFactor = normalizedZoom
             zoomFactor = normalizedZoom
-            
             device.unlockForConfiguration()
         } catch {
-            print("Error setting zoom: \(error.localizedDescription)")
             self.error = .zoomError
         }
     }
@@ -313,7 +294,6 @@ class CameraManager: NSObject, ObservableObject {
     
     func capturePhoto(completion: @escaping (UIImage?) -> Void) {
         guard session.isRunning else {
-            print("Session is not running")
             completion(nil)
             return
         }
@@ -321,22 +301,7 @@ class CameraManager: NSObject, ObservableObject {
         self.photoCompletion = completion
         self.isProcessingPhoto = true
         
-        // Configure photo settings
-        let settings = AVCapturePhotoSettings()
-        settings.flashMode = self.flashMode
-        settings.isHighResolutionPhotoEnabled = true
-        
-        // Set photo quality prioritization
-        if #available(iOS 14.0, *) {
-            settings.photoQualityPrioritization = .quality
-        }
-        
-        // Configure preview
-        if let previewPixelType = settings.availablePreviewPhotoPixelFormatTypes.first {
-            settings.previewPhotoFormat = [kCVPixelBufferPixelFormatTypeKey as String: previewPixelType]
-        }
-        
-        print("Capturing photo with settings: \(settings)")
+        let settings = setupPhotoSettings()
         
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
@@ -350,53 +315,45 @@ class CameraManager: NSObject, ObservableObject {
             self.capturedImage = nil
             self.isProcessingPhoto = false
             self.photoCompletion = nil
-            print("Camera state reset")
         }
     }
     
     func toggleFoodMode() {
         isFoodModeEnabled.toggle()
         
-        guard let device = currentDevice else { return }
+        guard let device = currentDevice else {
+            return
+        }
         
         do {
             try device.lockForConfiguration()
             
             if isFoodModeEnabled {
                 // Optimize settings for food photography
-                
-                // 1. Set white balance to auto for accurate food colors
                 if device.isWhiteBalanceModeSupported(.continuousAutoWhiteBalance) {
                     device.whiteBalanceMode = .continuousAutoWhiteBalance
                 }
                 
-                // 2. Enable auto focus with focus mode
                 if device.isFocusModeSupported(.continuousAutoFocus) {
                     device.focusMode = .continuousAutoFocus
                 }
                 
-                // 3. Set exposure mode to continuous auto exposure
                 if device.isExposureModeSupported(.continuousAutoExposure) {
                     device.exposureMode = .continuousAutoExposure
                 }
                 
-                // 4. Increase saturation slightly for more vibrant food colors
                 if #available(iOS 13.0, *) {
-                    if let videoDevice = device as? AVCaptureDevice {
-                        if videoDevice.activeFormat.isVideoHDRSupported {
-                            videoDevice.isVideoHDREnabled = true
-                        }
+                    if device.activeFormat.isVideoHDRSupported {
+                        device.isVideoHDREnabled = true
                     }
                 }
                 
-                // 5. Set optimal zoom for food (slightly zoomed in)
+                // Set optimal zoom for food (slightly zoomed in)
                 let foodOptimalZoom: CGFloat = 1.5
                 if device.videoZoomFactor < foodOptimalZoom && foodOptimalZoom <= device.activeFormat.videoMaxZoomFactor {
                     device.videoZoomFactor = foodOptimalZoom
                     zoomFactor = foodOptimalZoom
                 }
-                
-                print("Food mode enabled with optimized camera settings")
             } else {
                 // Reset to default settings
                 if device.isWhiteBalanceModeSupported(.continuousAutoWhiteBalance) {
@@ -412,34 +369,28 @@ class CameraManager: NSObject, ObservableObject {
                 }
                 
                 if #available(iOS 13.0, *) {
-                    if let videoDevice = device as? AVCaptureDevice {
-                        if videoDevice.activeFormat.isVideoHDRSupported {
-                            videoDevice.isVideoHDREnabled = false
-                        }
+                    if device.activeFormat.isVideoHDRSupported {
+                        device.isVideoHDREnabled = false
                     }
                 }
                 
-                // Reset zoom to default
                 device.videoZoomFactor = 1.0
                 zoomFactor = 1.0
-                
-                print("Food mode disabled, camera settings reset to default")
             }
             
             device.unlockForConfiguration()
         } catch {
-            print("Error configuring device for food mode: \(error.localizedDescription)")
+            // If food mode configuration fails, just continue with default settings
+            self.error = .zoomError
         }
     }
     
     func startBurstCapture(completion: @escaping ([UIImage]) -> Void) {
         guard !isBurstCapturing else {
-            print("Burst capture already in progress")
             return
         }
         
         guard session.isRunning else {
-            print("Session is not running")
             completion([])
             return
         }
@@ -449,12 +400,8 @@ class CameraManager: NSObject, ObservableObject {
         self.burstImages = []
         self.burstCount = 0
         
-        print("Starting burst capture, will take \(maxBurstCount) photos")
-        
-        // Take first photo immediately
         takeBurstPhoto()
         
-        // Schedule timer for remaining photos
         burstTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] timer in
             guard let self = self else {
                 timer.invalidate()
@@ -471,17 +418,7 @@ class CameraManager: NSObject, ObservableObject {
     }
     
     private func takeBurstPhoto() {
-        // Configure photo settings
-        let settings = AVCapturePhotoSettings()
-        settings.flashMode = self.flashMode
-        settings.isHighResolutionPhotoEnabled = true
-        
-        // Set photo quality prioritization
-        if #available(iOS 14.0, *) {
-            settings.photoQualityPrioritization = .balanced
-        }
-        
-        print("Taking burst photo \(burstCount + 1) of \(maxBurstCount)")
+        let settings = setupPhotoSettings()
         
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
@@ -494,10 +431,7 @@ class CameraManager: NSObject, ObservableObject {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             
-            print("Burst capture completed with \(self.burstImages.count) images")
             self.isBurstCapturing = false
-            
-            // Call completion with captured images
             self.burstCompletion?(self.burstImages)
             self.burstCompletion = nil
         }
@@ -511,15 +445,42 @@ class CameraManager: NSObject, ObservableObject {
         burstCount = 0
         burstCompletion?([])
         burstCompletion = nil
+    }
+    
+    func setupPhotoSettings() -> AVCapturePhotoSettings {
+        let settings = AVCapturePhotoSettings()
         
-        print("Burst capture canceled")
+        if #available(iOS 16.0, *) {
+            settings.maxPhotoDimensions = output.maxPhotoDimensions
+        }
+        
+        if isFlashAvailable {
+            settings.flashMode = flashMode
+        }
+        
+        return settings
+    }
+    
+    private func configureDevice(_ device: AVCaptureDevice) throws {
+        try device.lockForConfiguration()
+        device.videoZoomFactor = zoomFactor
+        
+        if device.isFocusModeSupported(.continuousAutoFocus) {
+            device.focusMode = .continuousAutoFocus
+        }
+        
+        if device.isExposureModeSupported(.continuousAutoExposure) {
+            device.exposureMode = .continuousAutoExposure
+        }
+        
+        device.unlockForConfiguration()
     }
 }
 
 extension CameraManager: AVCapturePhotoCaptureDelegate {
     func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
-        if let error = error {
-            print("Error capturing photo: \(error.localizedDescription)")
+        if let captureError = error {
+            print("Photo capture error: \(captureError.localizedDescription)")
             self.error = .captureError
             
             DispatchQueue.main.async { [weak self] in
@@ -538,7 +499,7 @@ extension CameraManager: AVCapturePhotoCaptureDelegate {
         
         guard let imageData = photo.fileDataRepresentation(),
               let image = UIImage(data: imageData) else {
-            print("Failed to create image from photo data")
+            self.error = .captureError
             
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
@@ -558,17 +519,12 @@ extension CameraManager: AVCapturePhotoCaptureDelegate {
             guard let self = self else { return }
             
             if self.isBurstCapturing {
-                // Add to burst images array
                 self.burstImages.append(image)
-                print("Added image \(self.burstImages.count) to burst collection")
                 
-                // If this is the last image or we've reached max, finish burst
                 if self.burstCount >= self.maxBurstCount {
                     self.finishBurstCapture()
                 }
             } else {
-                // Normal photo capture
-                print("Photo captured successfully")
                 self.capturedImage = image
                 self.isProcessingPhoto = false
                 self.photoCompletion?(image)
@@ -578,12 +534,6 @@ extension CameraManager: AVCapturePhotoCaptureDelegate {
     }
     
     func photoOutput(_ output: AVCapturePhotoOutput, willCapturePhotoFor resolvedSettings: AVCaptureResolvedPhotoSettings) {
-        print("Will capture photo")
-        // Add shutter sound
         AudioServicesPlaySystemSound(1108)
-    }
-    
-    func photoOutput(_ output: AVCapturePhotoOutput, didCapturePhotoFor resolvedSettings: AVCaptureResolvedPhotoSettings) {
-        print("Did capture photo")
     }
 } 

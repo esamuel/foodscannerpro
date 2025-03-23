@@ -420,50 +420,8 @@ struct HomeView: View {
                         .padding(.horizontal)
                     }
                     
-                    // Featured Section
-                    VStack(alignment: .leading) {
-                        HStack {
-                            Text("Featured Meals")
-                                .font(.title2)
-                                .fontWeight(.bold)
-                            
-                            Spacer()
-                            
-                            Button(action: {
-                                // Handle More action
-                            }) {
-                                HStack {
-                                    Text("More")
-                                    Image(systemName: "chevron.right")
-                                }
-                                .foregroundColor(.green)
-                            }
-                        }
-                        .padding(.horizontal)
-                        
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 20) {
-                                FeaturedCard(
-                                    title: "Healthy Breakfast",
-                                    subtitle: "Start Your Day Right",
-                                    imageName: "breakfast"
-                                )
-                                
-                                FeaturedCard(
-                                    title: "Mediterranean Diet",
-                                    subtitle: "Heart-Healthy Choices",
-                                    imageName: "mediterranean"
-                                )
-                                
-                                FeaturedCard(
-                                    title: "Protein-Rich Meals",
-                                    subtitle: "Build & Recover",
-                                    imageName: "protein"
-                                )
-                            }
-                            .padding(.horizontal)
-                        }
-                    }
+                    // Replace the existing Featured Meals section with our new view
+                    FeaturedMealsView()
                     
                     Spacer(minLength: 50)
                 }
