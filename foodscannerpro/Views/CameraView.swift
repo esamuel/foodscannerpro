@@ -112,7 +112,7 @@ struct CameraView: View {
                 }
             }
             .sheet(isPresented: $showingSettings) {
-                RecognitionSettingsView(selectedMode: $recognitionMode)
+                RecognitionSettingsView(selectedMode: $recognitionMode, isPresented: $showingSettings)
             }
             .fullScreenCover(isPresented: $showingRecognition) {
                 if let image = capturedImage {
@@ -125,11 +125,13 @@ struct CameraView: View {
                 }
             }
             .sheet(isPresented: $isGalleryPickerPresented) {
-                ImagePicker(selectedImage: $capturedImage, isPresented: $isGalleryPickerPresented) { success in
-                    if success, capturedImage != nil {
-                        // Default to regular recognition for gallery images
-                        showingRecognition = true
-                    }
+                ImagePicker(selectedImage: $capturedImage, sourceType: .photoLibrary)
+            }
+            .onChange(of: capturedImage) { newValue in
+                if newValue != nil && isGalleryPickerPresented {
+                    // Default to regular recognition for gallery images
+                    isGalleryPickerPresented = false
+                    showingRecognition = true
                 }
             }
             .onAppear {
@@ -144,94 +146,35 @@ struct CameraView: View {
     }
 }
 
-// Add ImagePicker for gallery selection
-struct ImagePicker: UIViewControllerRepresentable {
-    @Binding var selectedImage: UIImage?
-    @Binding var isPresented: Bool
-    var onDismiss: (Bool) -> Void
-    
-    func makeUIViewController(context: Context) -> UIImagePickerController {
-        let picker = UIImagePickerController()
-        picker.delegate = context.coordinator
-        picker.sourceType = .photoLibrary
-        return picker
-    }
-    
-    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
-    
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-    
-    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-        let parent: ImagePicker
-        
-        init(_ parent: ImagePicker) {
-            self.parent = parent
-        }
-        
-        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
-            if let image = info[.originalImage] as? UIImage {
-                parent.selectedImage = image
-                parent.isPresented = false
-                parent.onDismiss(true)
-            } else {
-                parent.onDismiss(false)
-            }
-        }
-        
-        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            parent.isPresented = false
-            parent.onDismiss(false)
-        }
-    }
-}
-
 // Add RecognitionSettingsView
 struct RecognitionSettingsView: View {
     @Binding var selectedMode: RecognitionMode
-    @Environment(\.dismiss) private var dismiss
+    @Binding var isPresented: Bool
     
     var body: some View {
         NavigationView {
-            Form {
-                Section(header: Text("Recognition Mode")) {
-                    Picker("Mode", selection: $selectedMode) {
-                        ForEach(RecognitionMode.allCases, id: \.self) { mode in
-                            Text(mode.rawValue).tag(mode)
+            List {
+                ForEach(RecognitionMode.allCases, id: \.self) { mode in
+                    HStack {
+                        Text(mode.rawValue)
+                        Spacer()
+                        if mode == selectedMode {
+                            Image(systemName: "checkmark")
+                                .foregroundColor(.blue)
                         }
                     }
-                    .pickerStyle(SegmentedPickerStyle())
-                }
-                
-                Section(header: Text("Description")) {
-                    switch selectedMode {
-                    case .standard:
-                        Text("Standard mode uses basic image recognition for common food items.")
-                    case .enhanced:
-                        Text("Enhanced mode uses advanced algorithms for more accurate recognition.")
-                    case .api:
-                        Text("API mode connects to online services for the most comprehensive recognition.")
-                    case .combined:
-                        Text("Combined mode uses all available methods for the best possible results.")
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        selectedMode = mode
+                        isPresented = false
                     }
                 }
-                
-                Button("Apply") {
-                    dismiss()
-                }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.blue)
-                .foregroundColor(.white)
-                .cornerRadius(10)
-                .padding()
             }
-            .navigationTitle("Recognition Settings")
+            .navigationTitle("Recognition Mode")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
+                    Button("Cancel") {
+                        isPresented = false
                     }
                 }
             }
