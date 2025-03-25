@@ -177,10 +177,8 @@ struct ChatGPTScanView: View {
                 
                 if !scanService.scanInProgress && scanService.scanResults.isEmpty {
                     print("Starting ChatGPT scan...")
-                    // Try using the test method first to ensure it works
-                    scanService.testScan()
-                    // Comment out the regular scan method for now
-                    // scanService.scanFoodImage(image)
+                    // Use real scan instead of test scan
+                    scanService.scanFoodImage(image)
                 } else {
                     print("Not starting scan - already in progress or has results")
                 }

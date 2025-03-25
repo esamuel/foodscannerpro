@@ -6,7 +6,43 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		408525E72D92B4A1003633DF /* Components.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 408525DD2D92B4A0003633DF /* Components.framework */; };
+		408525F22D92B4A1003633DF /* Components.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 408525DD2D92B4A0003633DF /* Components.framework */; };
+		408525F32D92B4A1003633DF /* Components.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 408525DD2D92B4A0003633DF /* Components.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4089ABF12D92DB0D00410123 /* SwiftKeychainWrapper in Frameworks */ = {isa = PBXBuildFile; productRef = 4089ABF02D92DB0D00410123 /* SwiftKeychainWrapper */; };
+		40B81F562D92E2F1002169ED /* SwiftKeychainWrapper in Frameworks */ = {isa = PBXBuildFile; productRef = 40B81F552D92E2F1002169ED /* SwiftKeychainWrapper */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
+		408525C32D92AEE7003633DF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 40D1EB1E2D81A69D00F780E9 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 40D1EB252D81A69D00F780E9;
+			remoteInfo = foodscannerpro;
+		};
+		408525E82D92B4A1003633DF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 40D1EB1E2D81A69D00F780E9 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 408525DC2D92B4A0003633DF;
+			remoteInfo = Components;
+		};
+		408525EA2D92B4A1003633DF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 40D1EB1E2D81A69D00F780E9 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 40D1EB252D81A69D00F780E9;
+			remoteInfo = foodscannerpro;
+		};
+		408525F02D92B4A1003633DF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 40D1EB1E2D81A69D00F780E9 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 408525DC2D92B4A0003633DF;
+			remoteInfo = Components;
+		};
 		40D1EB372D81A6A000F780E9 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 40D1EB1E2D81A69D00F780E9 /* Project object */;
@@ -23,7 +59,24 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		408525D12D92AEE7003633DF /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				408525F32D92B4A1003633DF /* Components.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		408525BF2D92AEE6003633DF /* ComponentsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ComponentsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		408525DD2D92B4A0003633DF /* Components.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Components.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		408525E62D92B4A1003633DF /* ComponentsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ComponentsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		40D1EB262D81A69D00F780E9 /* foodscannerpro.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = foodscannerpro.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		40D1EB362D81A6A000F780E9 /* foodscannerproTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = foodscannerproTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		40D1EB402D81A6A000F780E9 /* foodscannerproUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = foodscannerproUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -37,9 +90,39 @@
 			);
 			target = 40D1EB252D81A69D00F780E9 /* foodscannerpro */;
 		};
+		408525F72D92B4A1003633DF /* Exceptions for "Components" folder in "Components" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			publicHeaders = (
+				Components.h,
+			);
+			target = 408525DC2D92B4A0003633DF /* Components */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		408525B72D92AEE6003633DF /* Components */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Components;
+			sourceTree = "<group>";
+		};
+		408525C52D92AEE7003633DF /* ComponentsTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ComponentsTests;
+			sourceTree = "<group>";
+		};
+		408525DE2D92B4A0003633DF /* Components */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				408525F72D92B4A1003633DF /* Exceptions for "Components" folder in "Components" target */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		408525EC2D92B4A1003633DF /* ComponentsTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ComponentsTests;
+			sourceTree = "<group>";
+		};
 		40D1EB282D81A69D00F780E9 /* foodscannerpro */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -61,10 +144,35 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		408525BC2D92AEE6003633DF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		408525DA2D92B4A0003633DF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				40B81F562D92E2F1002169ED /* SwiftKeychainWrapper in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		408525E32D92B4A1003633DF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				408525E72D92B4A1003633DF /* Components.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		40D1EB232D81A69D00F780E9 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4089ABF12D92DB0D00410123 /* SwiftKeychainWrapper in Frameworks */,
+				408525F22D92B4A1003633DF /* Components.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -85,12 +193,24 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		408525D52D92AFE5003633DF /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		40D1EB1D2D81A69D00F780E9 = {
 			isa = PBXGroup;
 			children = (
 				40D1EB282D81A69D00F780E9 /* foodscannerpro */,
 				40D1EB392D81A6A000F780E9 /* foodscannerproTests */,
 				40D1EB432D81A6A000F780E9 /* foodscannerproUITests */,
+				408525B72D92AEE6003633DF /* Components */,
+				408525C52D92AEE7003633DF /* ComponentsTests */,
+				408525DE2D92B4A0003633DF /* Components */,
+				408525EC2D92B4A1003633DF /* ComponentsTests */,
+				408525D52D92AFE5003633DF /* Frameworks */,
 				40D1EB272D81A69D00F780E9 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -101,13 +221,97 @@
 				40D1EB262D81A69D00F780E9 /* foodscannerpro.app */,
 				40D1EB362D81A6A000F780E9 /* foodscannerproTests.xctest */,
 				40D1EB402D81A6A000F780E9 /* foodscannerproUITests.xctest */,
+				408525BF2D92AEE6003633DF /* ComponentsTests.xctest */,
+				408525DD2D92B4A0003633DF /* Components.framework */,
+				408525E62D92B4A1003633DF /* ComponentsTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
+/* Begin PBXHeadersBuildPhase section */
+		408525D82D92B4A0003633DF /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXHeadersBuildPhase section */
+
 /* Begin PBXNativeTarget section */
+		408525BE2D92AEE6003633DF /* ComponentsTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 408525D22D92AEE7003633DF /* Build configuration list for PBXNativeTarget "ComponentsTests" */;
+			buildPhases = (
+				408525BB2D92AEE6003633DF /* Sources */,
+				408525BC2D92AEE6003633DF /* Frameworks */,
+				408525BD2D92AEE6003633DF /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				408525C42D92AEE7003633DF /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				408525C52D92AEE7003633DF /* ComponentsTests */,
+			);
+			name = ComponentsTests;
+			packageProductDependencies = (
+			);
+			productName = ComponentsTests;
+			productReference = 408525BF2D92AEE6003633DF /* ComponentsTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		408525DC2D92B4A0003633DF /* Components */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 408525F42D92B4A1003633DF /* Build configuration list for PBXNativeTarget "Components" */;
+			buildPhases = (
+				408525D82D92B4A0003633DF /* Headers */,
+				408525D92D92B4A0003633DF /* Sources */,
+				408525DA2D92B4A0003633DF /* Frameworks */,
+				408525DB2D92B4A0003633DF /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				408525DE2D92B4A0003633DF /* Components */,
+			);
+			name = Components;
+			packageProductDependencies = (
+				40B81F552D92E2F1002169ED /* SwiftKeychainWrapper */,
+			);
+			productName = Components;
+			productReference = 408525DD2D92B4A0003633DF /* Components.framework */;
+			productType = "com.apple.product-type.framework";
+		};
+		408525E52D92B4A1003633DF /* ComponentsTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 408525F82D92B4A1003633DF /* Build configuration list for PBXNativeTarget "ComponentsTests" */;
+			buildPhases = (
+				408525E22D92B4A1003633DF /* Sources */,
+				408525E32D92B4A1003633DF /* Frameworks */,
+				408525E42D92B4A1003633DF /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				408525E92D92B4A1003633DF /* PBXTargetDependency */,
+				408525EB2D92B4A1003633DF /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				408525EC2D92B4A1003633DF /* ComponentsTests */,
+			);
+			name = ComponentsTests;
+			packageProductDependencies = (
+			);
+			productName = ComponentsTests;
+			productReference = 408525E62D92B4A1003633DF /* ComponentsTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		40D1EB252D81A69D00F780E9 /* foodscannerpro */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 40D1EB4A2D81A6A000F780E9 /* Build configuration list for PBXNativeTarget "foodscannerpro" */;
@@ -115,16 +319,19 @@
 				40D1EB222D81A69D00F780E9 /* Sources */,
 				40D1EB232D81A69D00F780E9 /* Frameworks */,
 				40D1EB242D81A69D00F780E9 /* Resources */,
+				408525D12D92AEE7003633DF /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				408525F12D92B4A1003633DF /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				40D1EB282D81A69D00F780E9 /* foodscannerpro */,
 			);
 			name = foodscannerpro;
 			packageProductDependencies = (
+				4089ABF02D92DB0D00410123 /* SwiftKeychainWrapper */,
 			);
 			productName = foodscannerpro;
 			productReference = 40D1EB262D81A69D00F780E9 /* foodscannerpro.app */;
@@ -186,6 +393,17 @@
 				LastSwiftUpdateCheck = 1620;
 				LastUpgradeCheck = 1620;
 				TargetAttributes = {
+					408525BE2D92AEE6003633DF = {
+						CreatedOnToolsVersion = 16.2;
+						TestTargetID = 40D1EB252D81A69D00F780E9;
+					};
+					408525DC2D92B4A0003633DF = {
+						CreatedOnToolsVersion = 16.2;
+					};
+					408525E52D92B4A1003633DF = {
+						CreatedOnToolsVersion = 16.2;
+						TestTargetID = 40D1EB252D81A69D00F780E9;
+					};
 					40D1EB252D81A69D00F780E9 = {
 						CreatedOnToolsVersion = 16.2;
 					};
@@ -208,6 +426,9 @@
 			);
 			mainGroup = 40D1EB1D2D81A69D00F780E9;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				408525FF2D92BD68003633DF /* XCRemoteSwiftPackageReference "SwiftKeychainWrapper" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 40D1EB272D81A69D00F780E9 /* Products */;
 			projectDirPath = "";
@@ -216,11 +437,35 @@
 				40D1EB252D81A69D00F780E9 /* foodscannerpro */,
 				40D1EB352D81A6A000F780E9 /* foodscannerproTests */,
 				40D1EB3F2D81A6A000F780E9 /* foodscannerproUITests */,
+				408525BE2D92AEE6003633DF /* ComponentsTests */,
+				408525DC2D92B4A0003633DF /* Components */,
+				408525E52D92B4A1003633DF /* ComponentsTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		408525BD2D92AEE6003633DF /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		408525DB2D92B4A0003633DF /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		408525E42D92B4A1003633DF /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		40D1EB242D81A69D00F780E9 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -245,6 +490,27 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		408525BB2D92AEE6003633DF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		408525D92D92B4A0003633DF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		408525E22D92B4A1003633DF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		40D1EB222D81A69D00F780E9 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -269,6 +535,26 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		408525C42D92AEE7003633DF /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 40D1EB252D81A69D00F780E9 /* foodscannerpro */;
+			targetProxy = 408525C32D92AEE7003633DF /* PBXContainerItemProxy */;
+		};
+		408525E92D92B4A1003633DF /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 408525DC2D92B4A0003633DF /* Components */;
+			targetProxy = 408525E82D92B4A1003633DF /* PBXContainerItemProxy */;
+		};
+		408525EB2D92B4A1003633DF /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 40D1EB252D81A69D00F780E9 /* foodscannerpro */;
+			targetProxy = 408525EA2D92B4A1003633DF /* PBXContainerItemProxy */;
+		};
+		408525F12D92B4A1003633DF /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 408525DC2D92B4A0003633DF /* Components */;
+			targetProxy = 408525F02D92B4A1003633DF /* PBXContainerItemProxy */;
+		};
 		40D1EB382D81A6A000F780E9 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 40D1EB252D81A69D00F780E9 /* foodscannerpro */;
@@ -282,6 +568,144 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		408525D32D92AEE7003633DF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 2X955T7VJ9;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.samueleskenasy.ComponentsTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/foodscannerpro.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/foodscannerpro";
+			};
+			name = Debug;
+		};
+		408525D42D92AEE7003633DF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 2X955T7VJ9;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.samueleskenasy.ComponentsTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/foodscannerpro.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/foodscannerpro";
+			};
+			name = Release;
+		};
+		408525F52D92B4A1003633DF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = 2X955T7VJ9;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_MODULE_VERIFIER = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+				PRODUCT_BUNDLE_IDENTIFIER = com.samueleskenasy.Components;
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_INSTALL_OBJC_HEADER = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "apple-generic";
+				VERSION_INFO_PREFIX = "";
+			};
+			name = Debug;
+		};
+		408525F62D92B4A1003633DF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = 2X955T7VJ9;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_MODULE_VERIFIER = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+				PRODUCT_BUNDLE_IDENTIFIER = com.samueleskenasy.Components;
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_INSTALL_OBJC_HEADER = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "apple-generic";
+				VERSION_INFO_PREFIX = "";
+			};
+			name = Release;
+		};
+		408525F92D92B4A1003633DF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 2X955T7VJ9;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.samueleskenasy.ComponentsTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/foodscannerpro.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/foodscannerpro";
+			};
+			name = Debug;
+		};
+		408525FA2D92B4A1003633DF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 2X955T7VJ9;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.samueleskenasy.ComponentsTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/foodscannerpro.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/foodscannerpro";
+			};
+			name = Release;
+		};
 		40D1EB482D81A6A000F780E9 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -544,6 +968,33 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		408525D22D92AEE7003633DF /* Build configuration list for PBXNativeTarget "ComponentsTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				408525D32D92AEE7003633DF /* Debug */,
+				408525D42D92AEE7003633DF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		408525F42D92B4A1003633DF /* Build configuration list for PBXNativeTarget "Components" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				408525F52D92B4A1003633DF /* Debug */,
+				408525F62D92B4A1003633DF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		408525F82D92B4A1003633DF /* Build configuration list for PBXNativeTarget "ComponentsTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				408525F92D92B4A1003633DF /* Debug */,
+				408525FA2D92B4A1003633DF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		40D1EB212D81A69D00F780E9 /* Build configuration list for PBXProject "foodscannerpro" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -581,6 +1032,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		408525FF2D92BD68003633DF /* XCRemoteSwiftPackageReference "SwiftKeychainWrapper" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/jrendel/SwiftKeychainWrapper";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.0.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		4089ABF02D92DB0D00410123 /* SwiftKeychainWrapper */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 408525FF2D92BD68003633DF /* XCRemoteSwiftPackageReference "SwiftKeychainWrapper" */;
+			productName = SwiftKeychainWrapper;
+		};
+		40B81F552D92E2F1002169ED /* SwiftKeychainWrapper */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 408525FF2D92BD68003633DF /* XCRemoteSwiftPackageReference "SwiftKeychainWrapper" */;
+			productName = SwiftKeychainWrapper;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 40D1EB1E2D81A69D00F780E9 /* Project object */;
 }

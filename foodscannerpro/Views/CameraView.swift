@@ -1,5 +1,6 @@
 import SwiftUI
 import AVFoundation
+import Components
 
 struct CameraView: View {
     @Binding var tabSelection: Int
@@ -7,6 +8,7 @@ struct CameraView: View {
     @StateObject private var cameraManager = CameraManager()
     @StateObject private var chatGPTScanService = ChatGPTScanService()
     @State private var showingSettings = false
+    @State private var showingAPISettings = false
     @State private var recognitionMode: RecognitionMode = .standard
     @State private var capturedImage: UIImage?
     @State private var showingRecognition = false
@@ -46,11 +48,16 @@ struct CameraView: View {
                             
                             // ChatGPT Scan button
                             Button(action: {
-                                // Capture image and show ChatGPT scan
-                                cameraManager.capturePhoto { image in
-                                    if let image = image {
-                                        capturedImage = image
-                                        showingChatGPTScan = true
+                                // Check if API key is configured
+                                if APIConfig.chatGPTAPIKey == nil || APIConfig.chatGPTAPIKey == "YOUR-API-KEY-HERE" {
+                                    showingAPISettings = true
+                                } else {
+                                    // Capture image and show ChatGPT scan
+                                    cameraManager.capturePhoto { image in
+                                        if let image = image {
+                                            capturedImage = image
+                                            showingChatGPTScan = true
+                                        }
                                     }
                                 }
                             }) {
@@ -114,6 +121,9 @@ struct CameraView: View {
             .sheet(isPresented: $showingSettings) {
                 RecognitionSettingsView(selectedMode: $recognitionMode, isPresented: $showingSettings)
             }
+            .sheet(isPresented: $showingAPISettings) {
+                APISettingsView()
+            }
             .fullScreenCover(isPresented: $showingRecognition) {
                 if let image = capturedImage {
                     FoodRecognitionView(image: image, classifier: FoodClassifier(), rootIsPresented: $showingRecognition, tabSelection: $tabSelection)
@@ -125,7 +135,7 @@ struct CameraView: View {
                 }
             }
             .sheet(isPresented: $isGalleryPickerPresented) {
-                ImagePicker(selectedImage: $capturedImage, sourceType: .photoLibrary)
+                ModernImagePicker(selectedImage: $capturedImage, sourceType: .photoLibrary)
             }
             .onChange(of: capturedImage) { oldValue, newValue in
                 if newValue != nil && isGalleryPickerPresented {

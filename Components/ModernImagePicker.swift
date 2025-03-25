@@ -2,12 +2,17 @@ import SwiftUI
 import PhotosUI
 import UIKit
 
-struct ImagePicker: UIViewControllerRepresentable {
-    @Binding var selectedImage: UIImage?
-    var sourceType: UIImagePickerController.SourceType
+public struct ModernImagePicker: UIViewControllerRepresentable {
+    @Binding public var selectedImage: UIImage?
+    public var sourceType: UIImagePickerController.SourceType
     @Environment(\.dismiss) private var dismiss
     
-    func makeUIViewController(context: Context) -> UIViewController {
+    public init(selectedImage: Binding<UIImage?>, sourceType: UIImagePickerController.SourceType) {
+        self._selectedImage = selectedImage
+        self.sourceType = sourceType
+    }
+    
+    public func makeUIViewController(context: Context) -> UIViewController {
         // Use PHPicker for photo library access (iOS 14+)
         if sourceType == .photoLibrary {
             var config = PHPickerConfiguration()
@@ -29,23 +34,23 @@ struct ImagePicker: UIViewControllerRepresentable {
         }
     }
     
-    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
+    public func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
         // No updates needed
     }
     
-    func makeCoordinator() -> Coordinator {
+    public func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
     
-    class Coordinator: NSObject, PHPickerViewControllerDelegate, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
-        let parent: ImagePicker
+    public class Coordinator: NSObject, PHPickerViewControllerDelegate, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+        let parent: ModernImagePicker
         
-        init(_ parent: ImagePicker) {
+        init(_ parent: ModernImagePicker) {
             self.parent = parent
         }
         
         // PHPickerViewControllerDelegate
-        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+        public func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
             parent.dismiss()
             
             guard let provider = results.first?.itemProvider else { return }
@@ -60,14 +65,14 @@ struct ImagePicker: UIViewControllerRepresentable {
         }
         
         // UIImagePickerControllerDelegate
-        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+        public func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
             if let image = info[.originalImage] as? UIImage {
                 parent.selectedImage = image
             }
             parent.dismiss()
         }
         
-        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+        public func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
             parent.dismiss()
         }
     }

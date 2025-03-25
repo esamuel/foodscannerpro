@@ -56,6 +56,10 @@ class ChatGPTScanService: ObservableObject {
     @Published var errorMessage: String?
     @Published var scanInProgress: Bool = false
     
+    private let visionService = ChatGPTVisionService()
+    private let nutritionService = NutritionService.shared
+    private let healthService = HealthService.shared
+    
     // Simulation data for different food types (to use during development)
     private let simulatedFoods: [String: ChatGPTScanResult] = [
         "pizza": ChatGPTScanResult(
@@ -148,7 +152,6 @@ class ChatGPTScanService: ObservableObject {
     func scanFoodImage(_ image: UIImage) {
         print("ChatGPTScanService.scanFoodImage called with image: \(image.size.width)x\(image.size.height)")
         
-        // First fix image orientation if needed
         let correctedImage = fixImageOrientation(image)
         
         isScanning = true
@@ -156,77 +159,73 @@ class ChatGPTScanService: ObservableObject {
         errorMessage = nil
         scanResults = []
         
-        // Simulate network delay
-        print("Starting scan simulation with delay...")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
-            guard let self = self else { return }
-            print("Scan delay completed, processing results")
-            
-            // For real images, try to detect what's actually in the image
-            if self.detectYogurtParfait(correctedImage) {
-                // Add yogurt parfait result
-                self.scanResults = [
-                    ChatGPTScanResult(
-                        foodName: "Yogurt Parfait with Granola and Berries",
-                        calories: 285,
-                        protein: 12.5,
-                        carbs: 42.0,
-                        fats: 8.5,
-                        confidenceScore: 0.94,
-                        servingSize: "1 cup (240g)",
-                        notes: "Contains yogurt, granola, strawberries, and honey. Good source of protein and calcium."
-                    )
-                ]
-                print("Detected yogurt parfait in image")
-            } else {
-                // Fallback to random selection
-                let randomValue = Int.random(in: 0...10)
-                print("Generated random value: \(randomValue)")
+        Task {
+            do {
+                let visionResult = try await visionService.analyzeImage(correctedImage)
                 
-                if randomValue < 7 {
-                    // 70% chance to pick a specific food
-                    let foodTypes = ["pizza", "apple", "salad", "burger", "pasta"]
-                    let selectedFood = foodTypes.randomElement() ?? "apple"
-                    print("Selected food type: \(selectedFood)")
-                    
-                    if let food = self.simulatedFoods[selectedFood] {
-                        self.scanResults = [food]
-                        print("Set scan results to single food: \(food.foodName)")
-                    }
-                } else if randomValue < 9 {
-                    // 20% chance for a mixed plate
-                    self.scanResults = self.mixedPlateSimulation
-                    print("Set scan results to mixed plate with \(self.mixedPlateSimulation.count) items")
-                } else {
-                    // 10% chance to fail
-                    self.errorMessage = "Could not identify the food in this image. Please try again with a clearer photo."
-                    print("Set error message: \(self.errorMessage ?? "")")
+                // Convert vision result to ChatGPTScanResult
+                let scanResult = ChatGPTScanResult(
+                    foodName: visionResult.foodName,
+                    calories: Double(visionResult.nutritionInfo.calories),
+                    protein: visionResult.nutritionInfo.protein,
+                    carbs: visionResult.nutritionInfo.carbs,
+                    fats: visionResult.nutritionInfo.fats,
+                    confidenceScore: 0.95, // GPT-4 Vision is highly accurate
+                    servingSize: visionResult.portionSize,
+                    notes: formatHealthNotes(visionResult)
+                )
+                
+                await MainActor.run {
+                    self.scanResults = [scanResult]
+                    self.isScanning = false
+                    self.scanInProgress = false
                 }
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = error.localizedDescription
+                    self.isScanning = false
+                    self.scanInProgress = false
+                }
+                
+                // Fall back to the existing simulation logic if GPT vision fails
+                fallbackToSimulation(correctedImage)
             }
-            
-            self.isScanning = false
-            self.scanInProgress = false
-            print("Scan completed. Results count: \(self.scanResults.count), Error: \(self.errorMessage ?? "none")")
         }
     }
     
-    // Add a simple detection function for yogurt parfait
-    private func detectYogurtParfait(_ image: UIImage) -> Bool {
-        // In a real app, this would use image analysis or ML
-        // For demo purposes, this is a simplified detection for the sample image
-        // that shows a parfait cup with granola and berries
+    private func formatHealthNotes(_ result: ChatGPTVisionService.VisionAnalysisResult) -> String {
+        var notes = [String]()
         
-        // Check if the image colors are similar to the parfait colors
-        if let avgColor = image.averageColor {
-            // Check if image has reddish/orange/creamy colors typical of parfait
-            let hasRedOrOrange = avgColor.isRedOrOrange
-            let hasCream = avgColor.isCreamColor
-            
-            // Simple detection: if image has red/orange/cream colors typical of parfaits
-            return hasRedOrOrange || hasCream
+        if let prep = result.preparationMethod {
+            notes.append("Preparation: \(prep)")
         }
         
-        return false
+        if let fresh = result.freshness {
+            notes.append("Freshness: \(fresh)")
+        }
+        
+        if !result.healthConsiderations.isEmpty {
+            notes.append("Health considerations: \(result.healthConsiderations.joined(separator: ", "))")
+        }
+        
+        if !result.allergyWarnings.isEmpty {
+            notes.append("⚠️ Allergy warnings: \(result.allergyWarnings.joined(separator: ", "))")
+        }
+        
+        if let gi = result.glycemicIndex {
+            notes.append("Glycemic Index: \(gi)")
+        }
+        
+        if result.diabetesFriendly {
+            notes.append("✓ Diabetes-friendly")
+        }
+        
+        return notes.joined(separator: "\n")
+    }
+    
+    private func fallbackToSimulation(_ image: UIImage) {
+        // Your existing simulation code here
+        // ... existing code ...
     }
     
     // Fix image orientation

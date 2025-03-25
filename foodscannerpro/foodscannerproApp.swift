@@ -15,6 +15,11 @@ struct FoodScannerProApp: App {
     // Track if onboarding has been completed
     @AppStorage("isOnboardingCompleted") private var isOnboardingCompleted: Bool = false
     
+    init() {
+        // Configure API key
+        APIConfig.configure(withChatGPTKey: ProcessInfo.processInfo.environment["CHATGPT_API_KEY"] ?? "YOUR_CHATGPT_API_KEY")
+    }
+    
     var body: some Scene {
         WindowGroup {
             if isOnboardingCompleted {

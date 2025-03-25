@@ -1,6 +1,7 @@
 import SwiftUI
 import PhotosUI
 import UIKit
+import Components
 
 struct ProfileView: View {
     @StateObject private var userProfile = UserProfile.shared
@@ -674,34 +675,55 @@ struct EditProfileView: View {
 // API Key Setup View
 struct APIKeySetupView: View {
     @Binding var isPresented: Bool
-    @State private var clarifaiKey = ""
-    @State private var logMealKey = ""
-    @State private var usdaKey = ""
+    @State private var clarifaiAPIKey = ""
+    @State private var logMealAPIKey = ""
+    @State private var usdaAPIKey = ""
     @State private var showingSuccessAlert = false
     @State private var successMessage = ""
+    @State private var chatGPTAPIKey = ""
+    @State private var logmealAPIKey = ""
     
     var body: some View {
         NavigationView {
             Form {
-                Section(header: Text("Clarifai API Key"),
-                        footer: Text("Get your key from https://www.clarifai.com/")) {
-                    TextField("Enter Clarifai API Key", text: $clarifaiKey)
+                Section(header: Text("ChatGPT API Key"),
+                        footer: Text("Get your key from OpenAI")) {
+                    TextField("Enter ChatGPT API key", text: $chatGPTAPIKey)
                         .autocapitalization(.none)
                         .disableAutocorrection(true)
+                }
+                
+                Section(header: Text("Clarifai API Key"),
+                        footer: Text("Get your key from")) {
+                    TextField("Enter Clarifai API key", text: $clarifaiAPIKey)
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
+                    
+                    Link("Get your key from", destination: URL(string: "https://www.clarifai.com/")!)
+                        .font(.caption)
+                        .foregroundColor(.blue)
                 }
                 
                 Section(header: Text("LogMeal API Key"),
-                        footer: Text("Get your key from https://logmeal.es/api")) {
-                    TextField("Enter LogMeal API Key", text: $logMealKey)
+                        footer: Text("Get your key from")) {
+                    TextField("Enter LogMeal API key", text: $logMealAPIKey)
                         .autocapitalization(.none)
                         .disableAutocorrection(true)
+                    
+                    Link("Get your key from", destination: URL(string: "https://logmeal.es/api")!)
+                        .font(.caption)
+                        .foregroundColor(.blue)
                 }
                 
                 Section(header: Text("USDA Food Data Central API Key"),
-                        footer: Text("Get your key from https://fdc.nal.usda.gov/api-key-signup.html")) {
-                    TextField("Enter USDA API Key", text: $usdaKey)
+                        footer: Text("Get your key from")) {
+                    TextField("Enter USDA API key", text: $usdaAPIKey)
                         .autocapitalization(.none)
                         .disableAutocorrection(true)
+                    
+                    Link("Get your key from", destination: URL(string: "https://fdc.nal.usda.gov/api-key-signup.html")!)
+                        .font(.caption)
+                        .foregroundColor(.blue)
                 }
                 
                 Section {
@@ -727,16 +749,20 @@ struct APIKeySetupView: View {
                 let apiKeyManager = APIKeyManager.shared
                 
                 // Only load keys that aren't default values
+                if apiKeyManager.chatGPTAPIKey != "YOUR_CHATGPT_API_KEY" {
+                    chatGPTAPIKey = apiKeyManager.chatGPTAPIKey
+                }
+
                 if apiKeyManager.clarifaiAPIKey != "YOUR_CLARIFAI_API_KEY" {
-                    clarifaiKey = apiKeyManager.clarifaiAPIKey
+                    clarifaiAPIKey = apiKeyManager.clarifaiAPIKey
                 }
                 
                 if apiKeyManager.logMealAPIKey != "YOUR_LOGMEAL_API_KEY" {
-                    logMealKey = apiKeyManager.logMealAPIKey
+                    logMealAPIKey = apiKeyManager.logMealAPIKey
                 }
                 
                 if apiKeyManager.usdaAPIKey != "DEMO_KEY" {
-                    usdaKey = apiKeyManager.usdaAPIKey
+                    usdaAPIKey = apiKeyManager.usdaAPIKey
                 }
             }
         }
@@ -746,22 +772,29 @@ struct APIKeySetupView: View {
         var success = false
         successMessage = "API Keys updated:"
         
-        if !clarifaiKey.isEmpty {
-            if APIKeyManager.shared.updateClarifaiAPIKey(clarifaiKey) {
+        if !chatGPTAPIKey.isEmpty {
+            if APIKeyManager.shared.updateChatGPTAPIKey(chatGPTAPIKey) {
+                successMessage += "\n✓ ChatGPT API key"
+                success = true
+            }
+        }
+
+        if !clarifaiAPIKey.isEmpty {
+            if APIKeyManager.shared.updateClarifaiAPIKey(clarifaiAPIKey) {
                 successMessage += "\n✓ Clarifai API key"
                 success = true
             }
         }
         
-        if !logMealKey.isEmpty {
-            if APIKeyManager.shared.updateLogMealAPIKey(logMealKey) {
+        if !logMealAPIKey.isEmpty {
+            if APIKeyManager.shared.updateLogMealAPIKey(logMealAPIKey) {
                 successMessage += "\n✓ LogMeal API key"
                 success = true
             }
         }
         
-        if !usdaKey.isEmpty {
-            if APIKeyManager.shared.updateUSDAAPIKey(usdaKey) {
+        if !usdaAPIKey.isEmpty {
+            if APIKeyManager.shared.updateUSDAAPIKey(usdaAPIKey) {
                 successMessage += "\n✓ USDA API key"
                 success = true
             }

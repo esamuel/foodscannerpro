@@ -14,6 +14,28 @@ import CoreData
 import Combine
 import Charts
 
+struct NutritionRow: View {
+    let title: String
+    let value: Int
+    let unit: String
+    
+    var body: some View {
+        VStack(spacing: 5) {
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            HStack(alignment: .bottom, spacing: 2) {
+                Text("\(value)")
+                    .font(.system(.body, design: .rounded))
+                    .fontWeight(.semibold)
+                Text(unit)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+}
+
 struct ContentView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @State private var selectedTab = 0
@@ -24,31 +46,31 @@ struct ContentView: View {
     
     var body: some View {
         ZStack(alignment: .bottom) {
-            TabView(selection: $selectedTab) {
+        TabView(selection: $selectedTab) {
                 HomeView(tabSelection: $selectedTab, showingCamera: $showingCamera)
-                    .tabItem {
-                        Label("Home", systemImage: "house.fill")
-                    }
-                    .tag(0)
-                
+                .tabItem {
+                    Label("Home", systemImage: "house.fill")
+                }
+                .tag(0)
+            
                 RecommendationsView()
-                    .tabItem {
+                .tabItem {
                         Label("Recommendations", systemImage: "heart.fill")
-                    }
-                    .tag(1)
-                
+                }
+                .tag(1)
+            
                 // Empty tab for the center camera button
                 Color.clear
-                    .tabItem {
+                .tabItem {
                         Label("", systemImage: "")
-                    }
-                    .tag(2)
-                
+                }
+                .tag(2)
+            
                 AnalyticsView()
-                    .tabItem {
+                .tabItem {
                         Label("Analytics", systemImage: "chart.bar.fill")
-                    }
-                    .tag(3)
+                }
+                .tag(3)
                 
                 EnhancedHistoryView()
                     .tabItem {
@@ -61,14 +83,14 @@ struct ContentView: View {
                         Label("Profile", systemImage: "person.fill")
                     }
                     .tag(5)
-                
-                // Add this new tab for testing
-                VisionTestView()
-                    .tabItem {
-                        Label("Vision Test", systemImage: "camera.viewfinder")
-                    }
-            }
-            .accentColor(.green)
+            
+            // Add this new tab for testing
+            VisionTestView()
+                .tabItem {
+                    Label("Vision Test", systemImage: "camera.viewfinder")
+                }
+        }
+        .accentColor(.green)
             .safeAreaInset(edge: .bottom) {
                 // Add extra padding at the bottom to accommodate the floating button
                 Color.clear.frame(height: 20)
