@@ -200,6 +200,13 @@ struct LegacyImagePicker: UIViewControllerRepresentable {
     @Binding var image: UIImage?
     @Environment(\.dismiss) private var dismiss
     @Binding var showRecognition: Bool
+    @Binding var showChatGPTScan: Bool
+    
+    init(image: Binding<UIImage?>, showRecognition: Binding<Bool>, showChatGPTScan: Binding<Bool> = .constant(false)) {
+        self._image = image
+        self._showRecognition = showRecognition
+        self._showChatGPTScan = showChatGPTScan
+    }
     
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
@@ -234,7 +241,19 @@ struct LegacyImagePicker: UIViewControllerRepresentable {
                     
                     // Delay showing recognition to ensure picker is dismissed
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        self.parent.showRecognition = true
+                        // We need to check the showChatGPTScan flag ONCE and then take action
+                        let shouldShowChatGPTScan = self.parent.showChatGPTScan
+                        print("Should show ChatGPT scan: \(shouldShowChatGPTScan)")
+                        
+                        if shouldShowChatGPTScan {
+                            // If ChatGPT scan was requested, show that
+                            // We DO NOT set showChatGPTScan to true again, as it's already true
+                            // We just ensure recognition is false to avoid both screens showing
+                            self.parent.showRecognition = false
+                        } else {
+                            // Otherwise show regular recognition
+                            self.parent.showRecognition = true
+                        }
                     }
                 }
             } else {
@@ -259,6 +278,8 @@ struct HomeView: View {
     @State private var selectedImage: UIImage?
     @State private var showingPreview = false
     @State private var showingRecognition = false
+    @State private var showingChatGPTScan = false
+    @StateObject private var chatGPTScanService = ChatGPTScanService()
     @Binding var tabSelection: Int
     @Binding var showingCamera: Bool
     
@@ -337,10 +358,10 @@ struct HomeView: View {
                                     ZStack {
                                         Circle()
                                             .fill(Color.green.opacity(0.2))
-                                            .frame(width: 80, height: 80)
+                                            .frame(width: 60, height: 60)
                                         
                                         Image(systemName: "camera.fill")
-                                            .font(.system(size: 30))
+                                            .font(.system(size: 24))
                                             .foregroundColor(.green)
                                     }
                                     
@@ -358,20 +379,51 @@ struct HomeView: View {
                             Button {
                                 print("From Gallery button tapped")
                                 selectedImage = nil // Reset the image
+                                showingChatGPTScan = false // Ensure ChatGPT scan is not shown
+                                showingRecognition = false // Reset the recognition flag
                                 showingLegacyPicker = true
                             } label: {
                                 VStack(spacing: 12) {
                                     ZStack {
                                         Circle()
                                             .fill(Color.blue.opacity(0.2))
-                                            .frame(width: 80, height: 80)
+                                            .frame(width: 60, height: 60)
                                         
                                         Image(systemName: "photo.on.rectangle")
-                                            .font(.system(size: 30))
+                                            .font(.system(size: 24))
                                             .foregroundColor(.blue)
                                     }
                                     
                                     Text("From Gallery")
+                                        .font(.headline)
+                                        .foregroundColor(.primary)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color(.systemGray6))
+                                .cornerRadius(15)
+                            }
+                            
+                            // ChatGPT Scan option
+                            Button {
+                                print("ChatGPT Scan button tapped")
+                                selectedImage = nil // Reset the image
+                                showingChatGPTScan = true // Set the flag for ChatGPT scan
+                                showingRecognition = false // Ensure regular recognition is not shown
+                                showingLegacyPicker = true // Show the picker
+                            } label: {
+                                VStack(spacing: 12) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(Color.purple.opacity(0.2))
+                                            .frame(width: 60, height: 60)
+                                        
+                                        Image(systemName: "brain")
+                                            .font(.system(size: 24))
+                                            .foregroundColor(.purple)
+                                    }
+                                    
+                                    Text("ChatGPT Scan")
                                         .font(.headline)
                                         .foregroundColor(.primary)
                                 }
@@ -436,24 +488,35 @@ struct HomeView: View {
                 }
             }
             .sheet(isPresented: $showingLegacyPicker) {
-                LegacyImagePicker(image: $selectedImage, showRecognition: $showingRecognition)
+                LegacyImagePicker(image: $selectedImage, showRecognition: $showingRecognition, showChatGPTScan: $showingChatGPTScan)
             }
         }
         .fullScreenCover(isPresented: $showingRecognition) {
-            if let image = selectedImage {
-                FoodRecognitionView(image: image, classifier: FoodClassifier(), rootIsPresented: $showingRecognition, tabSelection: $tabSelection)
-            }
+            FoodRecognitionView(
+                image: selectedImage ?? UIImage(),
+                classifier: FoodClassifier(),
+                rootIsPresented: $showingRecognition,
+                tabSelection: $tabSelection
+            )
+        }
+        .fullScreenCover(isPresented: $showingChatGPTScan) {
+            ChatGPTScanWrapper(
+                selectedImage: selectedImage,
+                chatGPTScanService: chatGPTScanService,
+                rootIsPresented: $showingChatGPTScan,
+                tabSelection: $tabSelection
+            )
         }
         .onChange(of: selectedImage) { oldValue, newValue in
             print("selectedImage changed: \(newValue != nil ? "Image selected" : "No image")")
             if newValue != nil && showingImagePicker {
                 print("Image selected from PHPicker, closing picker and showing preview")
                 showingImagePicker = false
-                
-                // Delay showing the preview to ensure pickers are dismissed first
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    showingPreview = true
-                }
+                showingPreview = true
+            } else if newValue != nil && showingLegacyPicker {
+                print("Image selected from legacy picker, picker should auto-dismiss")
+                // The picker will handle showing either recognition or ChatGPT scan
+                // based on the flags we've set
             }
         }
         .onChange(of: showingRecognition) { oldValue, newValue in
@@ -489,6 +552,47 @@ struct FeatureButton: View {
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+struct ChatGPTScanWrapper: View {
+    let selectedImage: UIImage?
+    let chatGPTScanService: ChatGPTScanService
+    @Binding var rootIsPresented: Bool
+    @Binding var tabSelection: Int
+    
+    var body: some View {
+        if selectedImage == nil {
+            // Error view when no image is available
+            return AnyView(
+                VStack {
+                    Text("Error: No image selected")
+                        .font(.headline)
+                    Button("Go Back") {
+                        rootIsPresented = false
+                    }
+                    .padding()
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+                    .padding(.top, 20)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(.systemBackground))
+            )
+        } else {
+            // Unwrap the image safely
+            let unwrappedImage = selectedImage!
+            print("Showing ChatGPTScanView with image: \(unwrappedImage.size.width)x\(unwrappedImage.size.height)")
+            return AnyView(
+                ChatGPTScanView(
+                    image: unwrappedImage,
+                    scanService: chatGPTScanService,
+                    rootIsPresented: $rootIsPresented,
+                    tabSelection: $tabSelection
+                )
+            )
+        }
     }
 }
 
@@ -1686,7 +1790,12 @@ struct ImagePreviewView: View {
             .background(.ultraThinMaterial)
         }
         .fullScreenCover(isPresented: $showingRecognition) {
-            FoodRecognitionView(image: image, classifier: FoodClassifier(), rootIsPresented: .constant(false), tabSelection: .constant(0))
+            FoodRecognitionView(
+                image: image,
+                classifier: FoodClassifier(),
+                rootIsPresented: $showingRecognition,
+                tabSelection: $tabSelection
+            )
         }
     }
 }

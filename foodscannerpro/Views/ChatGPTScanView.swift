@@ -19,9 +19,8 @@ struct ChatGPTScanView: View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 20) {
-                    // Image preview
-                    Image(uiImage: image)
-                        .resizable()
+                    // Image preview with correct orientation
+                    RotationCorrectedImage(image: image)
                         .aspectRatio(contentMode: .fit)
                         .cornerRadius(15)
                         .padding(.horizontal)
@@ -173,8 +172,17 @@ struct ChatGPTScanView: View {
             }
             .onAppear {
                 // Start scanning when the view appears
+                print("ChatGPTScanView appeared with image: \(image.size.width)x\(image.size.height)")
+                print("scanInProgress: \(scanService.scanInProgress), scanResults: \(scanService.scanResults.count)")
+                
                 if !scanService.scanInProgress && scanService.scanResults.isEmpty {
-                    scanService.scanFoodImage(image)
+                    print("Starting ChatGPT scan...")
+                    // Try using the test method first to ensure it works
+                    scanService.testScan()
+                    // Comment out the regular scan method for now
+                    // scanService.scanFoodImage(image)
+                } else {
+                    print("Not starting scan - already in progress or has results")
                 }
             }
         }
@@ -332,5 +340,68 @@ struct NutritionInfoItem: View {
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+struct RotationCorrectedImage: View {
+    let image: UIImage
+    
+    var body: some View {
+        Image(uiImage: normalizedImage)
+            .resizable()
+    }
+    
+    // Process the image to correct its orientation
+    private var normalizedImage: UIImage {
+        // If orientation is already up, return the original
+        if image.imageOrientation == .up {
+            return image
+        }
+        
+        // Calculate the new size based on orientation
+        let size: CGSize
+        if image.imageOrientation == .left || image.imageOrientation == .right ||
+           image.imageOrientation == .leftMirrored || image.imageOrientation == .rightMirrored {
+            size = CGSize(width: image.size.height, height: image.size.width)
+        } else {
+            size = image.size
+        }
+        
+        // Create a new context with the correct size
+        UIGraphicsBeginImageContextWithOptions(size, false, image.scale)
+        guard let context = UIGraphicsGetCurrentContext() else {
+            return image
+        }
+        
+        // Set up the transform based on orientation
+        context.translateBy(x: size.width/2, y: size.height/2)
+        
+        switch image.imageOrientation {
+        case .down, .downMirrored:
+            context.rotate(by: .pi)
+        case .left, .leftMirrored:
+            context.rotate(by: .pi/2)
+        case .right, .rightMirrored:
+            context.rotate(by: -.pi/2)
+        default:
+            break
+        }
+        
+        // Handle mirroring
+        if image.imageOrientation.rawValue > 4 {
+            context.scaleBy(x: -1, y: 1)
+        }
+        
+        // Move back to draw from top-left
+        context.translateBy(x: -image.size.width/2, y: -image.size.height/2)
+        
+        // Draw the image
+        image.draw(at: .zero)
+        
+        // Get the normalized image
+        let normalizedImage = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        
+        return normalizedImage ?? image
     }
 } 

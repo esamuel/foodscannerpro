@@ -127,7 +127,7 @@ struct CameraView: View {
             .sheet(isPresented: $isGalleryPickerPresented) {
                 ImagePicker(selectedImage: $capturedImage, sourceType: .photoLibrary)
             }
-            .onChange(of: capturedImage) { newValue in
+            .onChange(of: capturedImage) { oldValue, newValue in
                 if newValue != nil && isGalleryPickerPresented {
                     // Default to regular recognition for gallery images
                     isGalleryPickerPresented = false
