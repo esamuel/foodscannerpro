@@ -76,6 +76,21 @@ class NutritionService: ObservableObject {
         saveCacheToDisk()
     }
     
+    /// Get basic nutrition information for a food item
+    /// - Parameters:
+    ///   - foodName: Name of the food to search for
+    ///   - completion: Completion handler with nutrition info or error
+    func getBasicNutritionInfo(for foodName: String, completion: @escaping (Result<NutritionInfo, Error>) -> Void) {
+        getNutritionInfo(for: foodName) { result in
+            switch result {
+            case .success(let foodNutritionInfo):
+                completion(.success(foodNutritionInfo.toNutritionInfo()))
+            case .failure(let error):
+                completion(.failure(error))
+            }
+        }
+    }
+    
     // MARK: - USDA API Methods
     
     private func fetchFromUSDA(foodName: String, retryCount: Int, completion: @escaping (Result<FoodNutritionInfo, Error>) -> Void) {
