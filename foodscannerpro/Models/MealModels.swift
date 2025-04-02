@@ -2,6 +2,17 @@ import Foundation
 import CoreData
 import UIKit
 
+// MARK: - Food Category Enum
+public enum FoodCategory: String, CaseIterable {
+    case breakfast = "Breakfast"
+    case lunch = "Lunch"
+    case dinner = "Dinner"
+    case snacks = "Snacks"
+    case desserts = "Desserts"
+    case beverages = "Beverages"
+    case other = "Other"
+}
+
 enum MealType: String, CaseIterable, Identifiable {
     case breakfast = "Breakfast"
     case lunch = "Lunch"

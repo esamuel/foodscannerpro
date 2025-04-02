@@ -9,7 +9,6 @@ public final class APIKeyManager: ObservableObject {
     private let keychain = KeychainWrapper.standard
     private let servicePrefix = "com.foodscannerpro.apikeys"
     
-    @Published public private(set) var chatGPTAPIKey: String = ""
     @Published public private(set) var clarifaiAPIKey: String = ""
     @Published public private(set) var logMealAPIKey: String = ""
     @Published public private(set) var usdaAPIKey: String = ""
@@ -19,7 +18,6 @@ public final class APIKeyManager: ObservableObject {
     }
     
     private func loadAPIKeys() {
-        chatGPTAPIKey = getAPIKey(for: "chatgpt") ?? ""
         clarifaiAPIKey = getAPIKey(for: "clarifai") ?? ""
         logMealAPIKey = getAPIKey(for: "logmeal") ?? ""
         usdaAPIKey = getAPIKey(for: "usda") ?? ""
@@ -31,14 +29,6 @@ public final class APIKeyManager: ObservableObject {
     
     private func saveAPIKey(_ key: String, for service: String) -> Bool {
         return keychain.set(key, forKey: "\(servicePrefix).\(service)")
-    }
-    
-    public func updateChatGPTAPIKey(_ key: String) -> Bool {
-        let success = saveAPIKey(key, for: "chatgpt")
-        if success {
-            chatGPTAPIKey = key
-        }
-        return success
     }
     
     public func updateClarifaiAPIKey(_ key: String) -> Bool {
@@ -65,10 +55,6 @@ public final class APIKeyManager: ObservableObject {
         return success
     }
     
-    public func hasValidChatGPTKey() -> Bool {
-        !chatGPTAPIKey.isEmpty
-    }
-    
     public func hasValidClarifaiKey() -> Bool {
         !clarifaiAPIKey.isEmpty
     }
@@ -79,5 +65,10 @@ public final class APIKeyManager: ObservableObject {
     
     public func hasValidUsdaKey() -> Bool {
         !usdaAPIKey.isEmpty
+    }
+    
+    public func clearAllAPIKeys() {
+        keychain.removeAllKeys()
+        loadAPIKeys()
     }
 } 

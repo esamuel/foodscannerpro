@@ -1,140 +1,109 @@
 import SwiftUI
 import Components
 
-@available(iOS 13.0, *)
-public struct APISettingsView: View {
-    @StateObject private var apiKeyManager = ComponentsAPIKeyManager.shared
-    @State private var chatGPTKey: String = ""
+struct APISettingsView: View {
+    @Environment(\.presentationMode) var presentationMode
+    @StateObject private var apiKeyManager = APIKeyManager.shared
+    
     @State private var clarifaiKey: String = ""
     @State private var logMealKey: String = ""
     @State private var usdaKey: String = ""
     @State private var showingAlert = false
     @State private var alertMessage = ""
-    @Environment(\.dismiss) private var dismiss
     
-    public var body: some View {
+    var body: some View {
         NavigationView {
             Form {
-                Section(header: Text("CHATGPT API KEY")) {
-                    SecureField("Enter your API key", text: $chatGPTKey)
-                    if apiKeyManager.hasValidChatGPTKey() {
-                        Text("✓ Key is set")
-                            .foregroundColor(.green)
-                    } else {
-                        Text("Get your key from OpenAI")
-                            .foregroundColor(.blue)
-                    }
-                }
-                
-                Section(header: Text("CLARIFAI API KEY")) {
-                    SecureField("Enter your API key", text: $clarifaiKey)
+                Section(header: Text("API Keys")) {
+                    SecureField("Clarifai API Key", text: $clarifaiKey)
+                        .textContentType(.password)
+                        .autocapitalization(.none)
                     if apiKeyManager.hasValidClarifaiKey() {
                         Text("✓ Key is set")
                             .foregroundColor(.green)
-                    } else {
-                        Text("Get your key from")
-                            .foregroundColor(.blue)
                     }
-                }
-                
-                Section(header: Text("LOGMEAL API KEY")) {
-                    SecureField("Enter your API key", text: $logMealKey)
+                    
+                    SecureField("LogMeal API Key", text: $logMealKey)
+                        .textContentType(.password)
+                        .autocapitalization(.none)
                     if apiKeyManager.hasValidLogMealKey() {
                         Text("✓ Key is set")
                             .foregroundColor(.green)
-                    } else {
-                        Text("Get your key from")
-                            .foregroundColor(.blue)
                     }
-                }
-                
-                Section(header: Text("USDA FOOD DATA CENTRAL API KEY")) {
-                    SecureField("Enter your API key", text: $usdaKey)
+                    
+                    SecureField("USDA API Key", text: $usdaKey)
+                        .textContentType(.password)
+                        .autocapitalization(.none)
                     if apiKeyManager.hasValidUsdaKey() {
                         Text("✓ Key is set")
                             .foregroundColor(.green)
-                    } else {
-                        Text("Get your key from")
-                            .foregroundColor(.blue)
                     }
                 }
                 
-                Button("Save API Keys") {
-                    var success = false
-                    var successMessage = "API Keys updated:"
-                    
-                    if !chatGPTKey.isEmpty {
-                        if apiKeyManager.updateChatGPTAPIKey(chatGPTKey) {
-                            successMessage += "\n✓ ChatGPT API key"
-                            success = true
-                        }
+                Section {
+                    Button(action: saveAPIKeys) {
+                        Text("Save API Keys")
                     }
                     
-                    if !clarifaiKey.isEmpty {
-                        if apiKeyManager.updateClarifaiAPIKey(clarifaiKey) {
-                            successMessage += "\n✓ Clarifai API key"
-                            success = true
-                        }
+                    Button(action: clearAPIKeys) {
+                        Text("Clear All API Keys")
+                            .foregroundColor(.red)
                     }
-                    
-                    if !logMealKey.isEmpty {
-                        if apiKeyManager.updateLogMealAPIKey(logMealKey) {
-                            successMessage += "\n✓ LogMeal API key"
-                            success = true
-                        }
-                    }
-                    
-                    if !usdaKey.isEmpty {
-                        if apiKeyManager.updateUSDAAPIKey(usdaKey) {
-                            successMessage += "\n✓ USDA API key"
-                            success = true
-                        }
-                    }
-                    
-                    alertMessage = success ? successMessage : "No API keys were updated."
-                    showingAlert = true
-                }
-                .frame(maxWidth: .infinity)
-                .buttonStyle(.borderedProminent)
-                
-                Section(header: Text("Note")) {
-                    Text("Your API keys are stored securely in the device's Keychain.")
-                        .foregroundColor(.secondary)
                 }
             }
-            .navigationTitle("API Key Setup")
+            .navigationTitle("API Settings")
             .navigationBarItems(trailing: Button("Done") {
-                dismiss()
+                presentationMode.wrappedValue.dismiss()
             })
             .alert(isPresented: $showingAlert) {
-                Alert(
-                    title: Text("API Keys"),
-                    message: Text(alertMessage),
-                    dismissButton: .default(Text("OK")) {
-                        if alertMessage.contains("updated") {
-                            dismiss()
-                        }
-                    }
-                )
+                Alert(title: Text("API Keys"), message: Text(alertMessage), dismissButton: .default(Text("OK")))
             }
-            .onAppear {
-                // Load existing API keys if available
-                if apiKeyManager.hasValidChatGPTKey() {
-                    chatGPTKey = apiKeyManager.chatGPTAPIKey
-                }
-                
-                if apiKeyManager.hasValidClarifaiKey() {
-                    clarifaiKey = apiKeyManager.clarifaiAPIKey
-                }
-                
-                if apiKeyManager.hasValidLogMealKey() {
-                    logMealKey = apiKeyManager.logMealAPIKey
-                }
-                
-                if apiKeyManager.hasValidUsdaKey() {
-                    usdaKey = apiKeyManager.usdaAPIKey
-                }
+            .onAppear(perform: loadAPIKeys)
+        }
+    }
+    
+    private func loadAPIKeys() {
+        clarifaiKey = apiKeyManager.clarifaiAPIKey
+        logMealKey = apiKeyManager.logMealAPIKey
+        usdaKey = apiKeyManager.usdaAPIKey
+    }
+    
+    private func saveAPIKeys() {
+        var success = false
+        var successMessage = "API Keys updated:"
+        
+        if !clarifaiKey.isEmpty {
+            if apiKeyManager.updateClarifaiAPIKey(clarifaiKey) {
+                successMessage += "\n✓ Clarifai API key"
+                success = true
             }
         }
+        
+        if !logMealKey.isEmpty {
+            if apiKeyManager.updateLogMealAPIKey(logMealKey) {
+                successMessage += "\n✓ LogMeal API key"
+                success = true
+            }
+        }
+        
+        if !usdaKey.isEmpty {
+            if apiKeyManager.updateUSDAAPIKey(usdaKey) {
+                successMessage += "\n✓ USDA API key"
+                success = true
+            }
+        }
+        
+        alertMessage = success ? successMessage : "No API keys were updated."
+        showingAlert = true
+    }
+    
+    private func clearAPIKeys() {
+        apiKeyManager.clearAllAPIKeys()
+        clarifaiKey = ""
+        logMealKey = ""
+        usdaKey = ""
+        
+        alertMessage = "All API keys have been cleared."
+        showingAlert = true
     }
 } 
