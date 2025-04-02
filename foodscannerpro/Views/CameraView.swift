@@ -6,13 +6,11 @@ struct CameraView: View {
     @Binding var tabSelection: Int
     @Environment(\.dismiss) private var dismiss
     @StateObject private var cameraManager = CameraManager()
-    @StateObject private var chatGPTScanService = ChatGPTScanService()
     @State private var showingSettings = false
     @State private var showingAPISettings = false
     @State private var recognitionMode: RecognitionMode = RecognitionMode.getLastSelected()
     @State private var capturedImage: UIImage?
     @State private var showingRecognition = false
-    @State private var showingChatGPTScan = false
     @State private var isGalleryPickerPresented = false
     
     var body: some View {
@@ -43,34 +41,6 @@ struct CameraView: View {
                                 .padding(.vertical, 8)
                                 .padding(.horizontal, 12)
                                 .background(Color.black.opacity(0.5))
-                                .cornerRadius(10)
-                            }
-                            
-                            // ChatGPT Scan button
-                            Button(action: {
-                                // Check if API key is configured
-                                if APIConfig.chatGPTAPIKey == nil || APIConfig.chatGPTAPIKey == "YOUR-API-KEY-HERE" {
-                                    showingAPISettings = true
-                                } else {
-                                    // Capture image and show ChatGPT scan
-                                    cameraManager.capturePhoto { image in
-                                        if let image = image {
-                                            capturedImage = image
-                                            showingChatGPTScan = true
-                                        }
-                                    }
-                                }
-                            }) {
-                                VStack {
-                                    Image(systemName: "brain")
-                                        .font(.system(size: 20))
-                                    Text("AI Scan")
-                                        .font(.caption2)
-                                }
-                                .foregroundColor(.white)
-                                .padding(.vertical, 8)
-                                .padding(.horizontal, 12)
-                                .background(Color.purple.opacity(0.7))
                                 .cornerRadius(10)
                             }
                         }
@@ -127,11 +97,6 @@ struct CameraView: View {
             .fullScreenCover(isPresented: $showingRecognition) {
                 if let image = capturedImage {
                     FoodRecognitionView(image: image, classifier: FoodClassifier(), rootIsPresented: $showingRecognition, tabSelection: $tabSelection)
-                }
-            }
-            .fullScreenCover(isPresented: $showingChatGPTScan) {
-                if let image = capturedImage {
-                    ChatGPTScanView(image: image, scanService: chatGPTScanService, rootIsPresented: $showingChatGPTScan, tabSelection: $tabSelection)
                 }
             }
             .sheet(isPresented: $isGalleryPickerPresented) {

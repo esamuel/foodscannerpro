@@ -3,14 +3,18 @@ import Components
 
 /// Configuration for API services
 public enum APIConfig {
-    /// The ChatGPT API key
-    public static var chatGPTAPIKey: String {
-        return APIKeyManager.shared.chatGPTAPIKey
-    }
-    
-    /// Configure the ChatGPT API key
+    /// Configure API keys
     /// - Parameter key: The API key to set
-    public static func configure(withChatGPTKey key: String) {
-        _ = APIKeyManager.shared.updateChatGPTAPIKey(key)
+    public static func configure(withKey key: String, forService service: String) {
+        switch service {
+        case "clarifai":
+            _ = APIKeyManager.shared.updateClarifaiAPIKey(key)
+        case "logmeal":
+            _ = APIKeyManager.shared.updateLogMealAPIKey(key)
+        case "usda":
+            _ = APIKeyManager.shared.updateUSDAAPIKey(key)
+        default:
+            break
+        }
     }
 } 

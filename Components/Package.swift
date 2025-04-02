@@ -4,8 +4,8 @@ import PackageDescription
 let package = Package(
     name: "Components",
     platforms: [
-        .iOS(.v13),
-        .macOS(.v10_15)
+        .iOS(.v17),
+        .macOS(.v14)
     ],
     products: [
         .library(
@@ -13,11 +13,14 @@ let package = Package(
             targets: ["Components"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/jrendel/SwiftKeychainWrapper.git", from: "4.0.0"),
+        .package(url: "https://github.com/jrendel/SwiftKeychainWrapper.git", from: "4.0.1"),
     ],
     targets: [
         .target(
             name: "Components",
-            dependencies: ["SwiftKeychainWrapper"])
+            dependencies: ["SwiftKeychainWrapper"]),
+        .testTarget(
+            name: "ComponentsTests",
+            dependencies: ["Components"]),
     ]
 ) 

@@ -5,278 +5,412 @@ import Components
 
 struct ProfileView: View {
     @StateObject private var userProfile = UserProfile.shared
+    @StateObject private var apiKeyManager = APIKeyManager.shared
     @State private var isEditingProfile = false
     @State private var showingImagePicker = false
     @State private var selectedImage: UIImage?
     @State private var showingAPIKeySetup = false
     @State private var showingSettings = false
+    @State private var showingAlert = false
+    @State private var alertMessage = ""
+    @State private var showingAPISettings = false
+    @State private var showingDeleteConfirmation = false
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
-                    // Profile Image
-                    ZStack {
-                        if let profileImage = userProfile.profileImage {
-                            Image(uiImage: profileImage)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 120, height: 120)
-                                .clipShape(Circle())
-                        } else {
-                            Circle()
-                                .fill(Color.gray.opacity(0.2))
-                                .frame(width: 120, height: 120)
-                                .overlay(
-                                    Image(systemName: "person.fill")
-                                        .font(.system(size: 50))
-                                        .foregroundColor(.gray)
-                                )
-                        }
-                        
-                        Button(action: {
-                            showingImagePicker = true
-                        }) {
-                            Circle()
-                                .fill(Color.blue)
-                                .frame(width: 30, height: 30)
-                                .overlay(
-                                    Image(systemName: "camera.fill")
-                                        .font(.system(size: 15))
-                                        .foregroundColor(.white)
-                                )
-                        }
-                        .offset(x: 40, y: 40)
-                    }
-                    .padding(.top, 20)
+                    ProfileHeaderView(
+                        userProfile: userProfile,
+                        showingImagePicker: $showingImagePicker,
+                        selectedImage: $selectedImage
+                    )
                     
-                    // User Name
-                    Text(userProfile.name)
-                        .font(.title)
-                        .fontWeight(.bold)
+                    UserStatsView(userProfile: userProfile)
                     
-                    // User Email
-                    Text(userProfile.email)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                    HealthMetricsView(userProfile: userProfile)
                     
-                    // User Stats
-                    VStack(spacing: 15) {
-                        HStack(spacing: 30) {
-                            StatView(title: "Age", value: "\(userProfile.age)")
-                            StatView(title: "Height", value: "\(Int(userProfile.height)) cm")
-                            StatView(title: "Weight", value: "\(Int(userProfile.weight)) kg")
-                        }
-                        
-                        // BMI
-                        HStack {
-                            Text("BMI:")
-                                .font(.headline)
-                            Text(String(format: "%.1f", userProfile.bmi))
-                                .font(.headline)
-                            Text("(\(userProfile.bmiCategory))")
-                                .font(.subheadline)
-                                .foregroundColor(bmiColor(for: userProfile.bmiCategory))
-                        }
-                    }
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(15)
-                    .padding(.horizontal)
+                    AlertPreferencesView(preferences: userProfile.alertPreferences)
                     
-                    // Health Metrics
-                    VStack(alignment: .leading, spacing: 15) {
-                        Text("Health Metrics")
-                            .font(.headline)
-                            .padding(.horizontal)
-                        
-                        HStack(spacing: 20) {
-                            HealthMetricView(
-                                title: "Blood Pressure",
-                                value: userProfile.bloodPressure,
-                                icon: "heart.fill",
-                                color: .red
-                            )
-                            
-                            HealthMetricView(
-                                title: "Blood Sugar",
-                                value: String(format: "%.1f mmol/L", userProfile.bloodSugar),
-                                icon: "drop.fill",
-                                color: .blue
-                            )
-                        }
-                        .padding(.horizontal)
-                        
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text("Cholesterol")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                            
-                            HStack {
-                                Text("Total: \(String(format: "%.1f", userProfile.cholesterol.total)) mmol/L")
-                                Spacer()
-                                Text("HDL: \(String(format: "%.1f", userProfile.cholesterol.hdl)) mmol/L")
-                                Spacer()
-                                Text("LDL: \(String(format: "%.1f", userProfile.cholesterol.ldl)) mmol/L")
-                            }
-                            .font(.caption)
-                            
-                            HStack {
-                                Text("Status:")
-                                Text(userProfile.cholesterol.status.rawValue)
-                                    .foregroundColor(cholesterolStatusColor(userProfile.cholesterol.status))
-                            }
-                            .font(.caption)
-                        }
-                        .padding()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(10)
-                        .padding(.horizontal)
-                    }
-                    .padding(.vertical, 5)
+                    PreferencesSectionView(
+                        dietaryPreferences: userProfile.dietaryPreferences,
+                        allergies: userProfile.allergies,
+                        goals: userProfile.goals
+                    )
                     
-                    // Alert Preferences
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Alert Preferences")
-                            .font(.headline)
-                            .padding(.horizontal)
-                        
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach([
-                                ("Sugar", userProfile.alertPreferences.alertForSugar, "\(Int(userProfile.alertPreferences.sugarThreshold))g"),
-                                ("Sodium", userProfile.alertPreferences.alertForSodium, "\(Int(userProfile.alertPreferences.sodiumThreshold))mg"),
-                                ("Fat", userProfile.alertPreferences.alertForFat, "\(Int(userProfile.alertPreferences.fatThreshold))g"),
-                                ("Calories", userProfile.alertPreferences.alertForCalories, "\(Int(userProfile.alertPreferences.calorieThreshold)) kcal"),
-                                ("Allergens", userProfile.alertPreferences.alertForAllergens, "")
-                            ], id: \.0) { item in
-                                HStack {
-                                    Image(systemName: item.1 ? "bell.fill" : "bell.slash")
-                                        .foregroundColor(item.1 ? .green : .gray)
-                                    Text(item.0)
-                                    Spacer()
-                                    if !item.2.isEmpty {
-                                        Text("Threshold: \(item.2)")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
-                            }
-                        }
-                        .padding()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(10)
-                        .padding(.horizontal)
-                    }
-                    .padding(.vertical, 5)
+                    ActionButtonsView(
+                        isEditingProfile: $isEditingProfile,
+                        showingSettings: $showingSettings,
+                        showingAPIKeySetup: $showingAPIKeySetup
+                    )
                     
-                    // Dietary Preferences
-                    SectionView(title: "Dietary Preferences", items: userProfile.dietaryPreferences)
-                    
-                    // Allergies
-                    SectionView(title: "Allergies", items: userProfile.allergies)
-                    
-                    // Goals
-                    SectionView(title: "Goals", items: userProfile.goals)
-                    
-                    // Edit Profile Button
-                    Button(action: {
-                        isEditingProfile = true
-                    }) {
-                        Text("Edit Profile")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue)
-                            .cornerRadius(10)
-                    }
-                    .padding(.horizontal)
-                    
-                    // Settings Button
-                    Button(action: {
-                        showingSettings = true
-                    }) {
-                        HStack {
-                            Image(systemName: "gear")
-                                .font(.headline)
-                            Text("Settings")
-                                .font(.headline)
-                        }
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.purple)
-                        .cornerRadius(10)
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 10)
-                    
-                    // API Key Setup Button
-                    Button(action: {
-                        showingAPIKeySetup = true
-                    }) {
-                        HStack {
-                            Image(systemName: "key.fill")
-                                .font(.headline)
-                            Text("Setup API Keys")
-                                .font(.headline)
-                        }
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.green)
-                        .cornerRadius(10)
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 10)
+                    APIStatusView(apiKeyManager: apiKeyManager, showingAPISettings: $showingAPISettings)
                 }
                 .padding(.bottom, 30)
             }
             .navigationTitle("Profile")
+            .navigationBarTitleDisplayMode(.large)
             .sheet(isPresented: $isEditingProfile) {
-                EditProfileView(userProfile: userProfile, isPresented: $isEditingProfile)
+                NavigationStack {
+                    EditProfileView(userProfile: userProfile, isPresented: $isEditingProfile)
+                }
             }
             .sheet(isPresented: $showingImagePicker) {
-                GalleryImagePicker(image: $selectedImage)
-                    .onDisappear {
-                        if let image = selectedImage {
-                            userProfile.profileImage = image
-                            userProfile.save()
-                        }
-                    }
+                ModernImagePicker(selectedImage: $selectedImage, sourceType: .photoLibrary)
             }
             .sheet(isPresented: $showingAPIKeySetup) {
-                APIKeySetupView(isPresented: $showingAPIKeySetup)
+                NavigationStack {
+                    APIKeySetupView(isPresented: $showingAPIKeySetup)
+                }
             }
             .sheet(isPresented: $showingSettings) {
-                SettingsView(isPresented: $showingSettings)
+                NavigationStack {
+                    SettingsView(isPresented: $showingSettings)
+                }
+            }
+            .sheet(isPresented: $showingAPISettings) {
+                NavigationStack {
+                    APISettingsView()
+                }
+            }
+            .onChange(of: selectedImage) { oldValue, newValue in
+                if let image = newValue {
+                    userProfile.updateProfileImage(image)
+                }
             }
         }
     }
+}
+
+// MARK: - Profile Header View
+struct ProfileHeaderView: View {
+    @ObservedObject var userProfile: UserProfile
+    @Binding var showingImagePicker: Bool
+    @Binding var selectedImage: UIImage?
     
-    private func bmiColor(for category: String) -> Color {
-        switch category {
-        case "Underweight":
-            return .orange
-        case "Normal":
-            return .green
-        case "Overweight":
-            return .yellow
-        case "Obese":
-            return .red
-        default:
-            return .gray
+    var body: some View {
+        VStack(spacing: 10) {
+            // Profile Image
+            ZStack {
+                if let profileImage = userProfile.profileImage {
+                    Image(uiImage: profileImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 120, height: 120)
+                        .clipShape(Circle())
+                } else {
+                    Circle()
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(width: 120, height: 120)
+                        .overlay(
+                            Image(systemName: "person.fill")
+                                .font(.system(size: 50))
+                                .foregroundColor(.gray)
+                        )
+                }
+                
+                Button(action: {
+                    showingImagePicker = true
+                }) {
+                    Circle()
+                        .fill(Color.blue)
+                        .frame(width: 30, height: 30)
+                        .overlay(
+                            Image(systemName: "camera.fill")
+                                .font(.system(size: 15))
+                                .foregroundColor(.white)
+                        )
+                }
+                .offset(x: 40, y: 40)
+            }
+            .padding(.top, 20)
+            
+            Text(userProfile.name)
+                .font(.title)
+                .fontWeight(.bold)
+            
+            Text(userProfile.email)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+    }
+}
+
+// MARK: - User Stats View
+struct UserStatsView: View {
+    @ObservedObject var userProfile: UserProfile
+    
+    var body: some View {
+        VStack(spacing: 15) {
+            HStack(spacing: 30) {
+                StatView(title: "Age", value: "\(userProfile.age)")
+                StatView(title: "Height", value: "\(Int(userProfile.height)) cm")
+                StatView(title: "Weight", value: "\(Int(userProfile.weight)) kg")
+            }
+            
+            BMIView(bmi: userProfile.bmi, category: userProfile.bmiCategory)
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(15)
+        .padding(.horizontal)
+    }
+}
+
+struct BMIView: View {
+    let bmi: Double
+    let category: Components.BMICategory
+    
+    var body: some View {
+        HStack {
+            Text("BMI:")
+                .font(.headline)
+            Text(String(format: "%.1f", bmi))
+                .font(.headline)
+            Text("(\(category.rawValue))")
+                .font(.subheadline)
+                .foregroundColor(bmiColor(for: category))
         }
     }
     
-    private func cholesterolStatusColor(_ status: Cholesterol.CholesterolStatus) -> Color {
+    private func bmiColor(for category: Components.BMICategory) -> Color {
+        switch category {
+        case .underweight: return .orange
+        case .normal: return .green
+        case .overweight: return .yellow
+        case .obese: return .red
+        }
+    }
+}
+
+// MARK: - Health Metrics View
+struct HealthMetricsView: View {
+    @ObservedObject var userProfile: UserProfile
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 15) {
+            Text("Health Metrics")
+                .font(.headline)
+                .padding(.horizontal)
+            
+            HStack(spacing: 20) {
+                HealthMetricView(
+                    title: "Blood Pressure",
+                    value: userProfile.bloodPressure,
+                    icon: "heart.fill",
+                    color: .red
+                )
+                
+                HealthMetricView(
+                    title: "Blood Sugar",
+                    value: String(format: "%.1f mmol/L", userProfile.bloodSugar),
+                    icon: "drop.fill",
+                    color: .blue
+                )
+            }
+            .padding(.horizontal)
+            
+            CholesterolView(cholesterol: userProfile.cholesterol)
+        }
+        .padding(.vertical, 5)
+    }
+}
+
+struct CholesterolView: View {
+    let cholesterol: Components.Cholesterol
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("Cholesterol")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            
+            HStack {
+                Text("Total: \(String(format: "%.1f", cholesterol.total)) mmol/L")
+                Spacer()
+                Text("HDL: \(String(format: "%.1f", cholesterol.hdl)) mmol/L")
+                Spacer()
+                Text("LDL: \(String(format: "%.1f", cholesterol.ldl)) mmol/L")
+            }
+            .font(.caption)
+            
+            HStack {
+                Text("Status:")
+                Text(cholesterol.status.rawValue)
+                    .foregroundColor(cholesterolStatusColor(cholesterol.status))
+            }
+            .font(.caption)
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(10)
+        .padding(.horizontal)
+    }
+    
+    private func cholesterolStatusColor(_ status: Components.CholesterolStatus) -> Color {
         switch status {
-        case .optimal:
-            return .green
-        case .borderline:
-            return .yellow
-        case .high:
-            return .red
+        case .optimal, .normal: return .green
+        case .borderline: return .yellow
+        case .high: return .red
+        }
+    }
+}
+
+// MARK: - Alert Preferences View
+struct AlertPreferencesView: View {
+    let preferences: Components.AlertPreferences
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Alert Preferences")
+                .font(.headline)
+                .padding(.horizontal)
+            
+            VStack(alignment: .leading, spacing: 8) {
+                AlertPreferenceRow(
+                    title: "Sugar",
+                    isEnabled: preferences.alertForSugar,
+                    threshold: "\(Int(preferences.sugarThreshold))g"
+                )
+                AlertPreferenceRow(
+                    title: "Sodium",
+                    isEnabled: preferences.alertForSodium,
+                    threshold: "\(Int(preferences.sodiumThreshold))mg"
+                )
+                AlertPreferenceRow(
+                    title: "Fat",
+                    isEnabled: preferences.alertForFat,
+                    threshold: "\(Int(preferences.fatThreshold))g"
+                )
+                AlertPreferenceRow(
+                    title: "Calories",
+                    isEnabled: preferences.alertForCalories,
+                    threshold: "\(Int(preferences.calorieThreshold)) kcal"
+                )
+                AlertPreferenceRow(
+                    title: "Allergens",
+                    isEnabled: preferences.alertForAllergens,
+                    threshold: ""
+                )
+            }
+            .padding()
+            .background(Color(.systemGray6))
+            .cornerRadius(10)
+            .padding(.horizontal)
+        }
+        .padding(.vertical, 5)
+    }
+}
+
+struct AlertPreferenceRow: View {
+    let title: String
+    let isEnabled: Bool
+    let threshold: String
+    
+    var body: some View {
+        HStack {
+            Image(systemName: isEnabled ? "bell.fill" : "bell.slash")
+                .foregroundColor(isEnabled ? .green : .gray)
+            Text(title)
+            Spacer()
+            if !threshold.isEmpty {
+                Text("Threshold: \(threshold)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+}
+
+// MARK: - Preferences Section View
+struct PreferencesSectionView: View {
+    let dietaryPreferences: [String]
+    let allergies: [String]
+    let goals: [String]
+    
+    var body: some View {
+        VStack(spacing: 15) {
+            SectionView(title: "Dietary Preferences", items: dietaryPreferences)
+            SectionView(title: "Allergies", items: allergies)
+            SectionView(title: "Goals", items: goals)
+        }
+    }
+}
+
+// MARK: - Action Buttons View
+struct ActionButtonsView: View {
+    @Binding var isEditingProfile: Bool
+    @Binding var showingSettings: Bool
+    @Binding var showingAPIKeySetup: Bool
+    
+    var body: some View {
+        VStack(spacing: 10) {
+            Button(action: { isEditingProfile = true }) {
+                ActionButtonLabel(title: "Edit Profile", icon: "pencil", color: .blue)
+            }
+            
+            Button(action: { showingSettings = true }) {
+                ActionButtonLabel(title: "Settings", icon: "gear", color: .purple)
+            }
+            
+            Button(action: { showingAPIKeySetup = true }) {
+                ActionButtonLabel(title: "Setup API Keys", icon: "key.fill", color: .green)
+            }
+        }
+        .padding(.horizontal)
+    }
+}
+
+struct ActionButtonLabel: View {
+    let title: String
+    let icon: String
+    let color: Color
+    
+    var body: some View {
+        HStack {
+            Image(systemName: icon)
+                .font(.headline)
+            Text(title)
+                .font(.headline)
+        }
+        .foregroundColor(.white)
+        .frame(maxWidth: .infinity)
+        .padding()
+        .background(color)
+        .cornerRadius(10)
+    }
+}
+
+// MARK: - API Status View
+struct APIStatusView: View {
+    @ObservedObject var apiKeyManager: APIKeyManager
+    @Binding var showingAPISettings: Bool
+    
+    var body: some View {
+        Section(header: Text("API Settings")) {
+            APIKeyStatusRow(title: "Clarifai", isValid: apiKeyManager.hasValidClarifaiKey())
+            APIKeyStatusRow(title: "LogMeal", isValid: apiKeyManager.hasValidLogMealKey())
+            APIKeyStatusRow(title: "USDA", isValid: apiKeyManager.hasValidUsdaKey())
+            
+            Button("Configure API Keys") {
+                showingAPISettings = true
+            }
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(10)
+        .padding(.horizontal)
+    }
+}
+
+struct APIKeyStatusRow: View {
+    let title: String
+    let isValid: Bool
+    
+    var body: some View {
+        HStack {
+            Text("\(isValid ? "✓" : "✗") \(title) API key \(isValid ? "is set" : "not set")")
+                .foregroundColor(isValid ? .green : .red)
         }
     }
 }
@@ -386,12 +520,14 @@ struct EditProfileView: View {
     
     init(userProfile: UserProfile, isPresented: Binding<Bool>) {
         self.userProfile = userProfile
+        _isPresented = isPresented
+        
+        // Initialize personal info
         _name = State(initialValue: userProfile.name)
         _email = State(initialValue: userProfile.email)
         _age = State(initialValue: String(userProfile.age))
         _height = State(initialValue: String(userProfile.height))
         _weight = State(initialValue: String(userProfile.weight))
-        _isPresented = isPresented
         
         // Initialize health metrics
         let bpComponents = userProfile.bloodPressure.split(separator: "/")
@@ -639,33 +775,41 @@ struct EditProfileView: View {
     private func saveProfile() {
         userProfile.name = name
         userProfile.email = email
-        userProfile.age = Int(age) ?? userProfile.age
-        userProfile.height = Double(height) ?? userProfile.height
-        userProfile.weight = Double(weight) ?? userProfile.weight
+        if let age = Int(age) {
+            userProfile.age = age
+        }
+        if let height = Double(height) {
+            userProfile.height = height
+        }
+        if let weight = Double(weight) {
+            userProfile.weight = weight
+        }
         
         // Save health metrics
         userProfile.bloodPressure = "\(bloodPressureSystolic)/\(bloodPressureDiastolic)"
-        userProfile.bloodSugar = Double(bloodSugar) ?? userProfile.bloodSugar
+        if let bloodSugarValue = Double(bloodSugar) {
+            userProfile.bloodSugar = bloodSugarValue
+        }
         
-        var cholesterol = Cholesterol()
-        cholesterol.total = Double(cholesterolTotal) ?? userProfile.cholesterol.total
-        cholesterol.hdl = Double(cholesterolHDL) ?? userProfile.cholesterol.hdl
-        cholesterol.ldl = Double(cholesterolLDL) ?? userProfile.cholesterol.ldl
+        let cholesterol = Components.Cholesterol(
+            total: Double(cholesterolTotal) ?? userProfile.cholesterol.total,
+            hdl: Double(cholesterolHDL) ?? userProfile.cholesterol.hdl,
+            ldl: Double(cholesterolLDL) ?? userProfile.cholesterol.ldl
+        )
         userProfile.cholesterol = cholesterol
         
         // Save alert preferences
-        var alertPrefs = AlertPreferences()
-        alertPrefs.alertForSugar = alertForSugar
-        alertPrefs.alertForSodium = alertForSodium
-        alertPrefs.alertForFat = alertForFat
-        alertPrefs.alertForCalories = alertForCalories
-        alertPrefs.alertForAllergens = alertForAllergens
-        
-        alertPrefs.sugarThreshold = Double(sugarThreshold) ?? userProfile.alertPreferences.sugarThreshold
-        alertPrefs.sodiumThreshold = Double(sodiumThreshold) ?? userProfile.alertPreferences.sodiumThreshold
-        alertPrefs.fatThreshold = Double(fatThreshold) ?? userProfile.alertPreferences.fatThreshold
-        alertPrefs.calorieThreshold = Double(calorieThreshold) ?? userProfile.alertPreferences.calorieThreshold
-        
+        let alertPrefs = Components.AlertPreferences(
+            alertForSugar: alertForSugar,
+            alertForSodium: alertForSodium,
+            alertForFat: alertForFat,
+            alertForCalories: alertForCalories,
+            alertForAllergens: alertForAllergens,
+            sugarThreshold: Double(sugarThreshold) ?? userProfile.alertPreferences.sugarThreshold,
+            sodiumThreshold: Double(sodiumThreshold) ?? userProfile.alertPreferences.sodiumThreshold,
+            fatThreshold: Double(fatThreshold) ?? userProfile.alertPreferences.fatThreshold,
+            calorieThreshold: Double(calorieThreshold) ?? userProfile.alertPreferences.calorieThreshold
+        )
         userProfile.alertPreferences = alertPrefs
         
         userProfile.save()
@@ -680,19 +824,10 @@ struct APIKeySetupView: View {
     @State private var usdaAPIKey = ""
     @State private var showingSuccessAlert = false
     @State private var successMessage = ""
-    @State private var chatGPTAPIKey = ""
-    @State private var logmealAPIKey = ""
     
     var body: some View {
         NavigationView {
             Form {
-                Section(header: Text("ChatGPT API Key"),
-                        footer: Text("Get your key from OpenAI")) {
-                    TextField("Enter ChatGPT API key", text: $chatGPTAPIKey)
-                        .autocapitalization(.none)
-                        .disableAutocorrection(true)
-                }
-                
                 Section(header: Text("Clarifai API Key"),
                         footer: Text("Get your key from")) {
                     TextField("Enter Clarifai API key", text: $clarifaiAPIKey)
@@ -749,20 +884,16 @@ struct APIKeySetupView: View {
                 let apiKeyManager = APIKeyManager.shared
                 
                 // Only load keys that aren't default values
-                if apiKeyManager.chatGPTAPIKey != "YOUR_CHATGPT_API_KEY" {
-                    chatGPTAPIKey = apiKeyManager.chatGPTAPIKey
-                }
-
                 if apiKeyManager.clarifaiAPIKey != "YOUR_CLARIFAI_API_KEY" {
-                    clarifaiAPIKey = apiKeyManager.clarifaiAPIKey
+                    clarifaiAPIKey = apiKeyManager.clarifaiAPIKey ?? ""
                 }
                 
                 if apiKeyManager.logMealAPIKey != "YOUR_LOGMEAL_API_KEY" {
-                    logMealAPIKey = apiKeyManager.logMealAPIKey
+                    logMealAPIKey = apiKeyManager.logMealAPIKey ?? ""
                 }
                 
                 if apiKeyManager.usdaAPIKey != "DEMO_KEY" {
-                    usdaAPIKey = apiKeyManager.usdaAPIKey
+                    usdaAPIKey = apiKeyManager.usdaAPIKey ?? ""
                 }
             }
         }
@@ -772,13 +903,6 @@ struct APIKeySetupView: View {
         var success = false
         successMessage = "API Keys updated:"
         
-        if !chatGPTAPIKey.isEmpty {
-            if APIKeyManager.shared.updateChatGPTAPIKey(chatGPTAPIKey) {
-                successMessage += "\n✓ ChatGPT API key"
-                success = true
-            }
-        }
-
         if !clarifaiAPIKey.isEmpty {
             if APIKeyManager.shared.updateClarifaiAPIKey(clarifaiAPIKey) {
                 successMessage += "\n✓ Clarifai API key"

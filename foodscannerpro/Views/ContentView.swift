@@ -20,7 +20,6 @@ struct ContentView: View {
     @State private var showingCamera = false
     @State private var showingFeatureTour = false
     @AppStorage("hasCompletedFeatureTour") private var hasCompletedFeatureTour = false
-    @State private var showVisionTest = false
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -61,12 +60,6 @@ struct ContentView: View {
                         Label("Profile", systemImage: "person.fill")
                     }
                     .tag(5)
-                
-                // Add this new tab for testing
-                VisionTestView()
-                    .tabItem {
-                        Label("Vision Test", systemImage: "camera.viewfinder")
-                    }
             }
             .accentColor(.green)
             .safeAreaInset(edge: .bottom) {
@@ -185,12 +178,10 @@ struct LegacyImagePicker: UIViewControllerRepresentable {
     @Binding var image: UIImage?
     @Environment(\.dismiss) private var dismiss
     @Binding var showRecognition: Bool
-    @Binding var showChatGPTScan: Bool
     
-    init(image: Binding<UIImage?>, showRecognition: Binding<Bool>, showChatGPTScan: Binding<Bool> = .constant(false)) {
+    init(image: Binding<UIImage?>, showRecognition: Binding<Bool>) {
         self._image = image
         self._showRecognition = showRecognition
-        self._showChatGPTScan = showChatGPTScan
     }
     
     func makeUIViewController(context: Context) -> UIImagePickerController {
@@ -198,11 +189,11 @@ struct LegacyImagePicker: UIViewControllerRepresentable {
         picker.delegate = context.coordinator
         picker.sourceType = .photoLibrary
         picker.allowsEditing = false
-        print("Legacy image picker created")
         return picker
     }
     
-    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {
+    }
     
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -216,297 +207,281 @@ struct LegacyImagePicker: UIViewControllerRepresentable {
         }
         
         func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
-            print("Image selected in legacy picker")
             if let image = info[.originalImage] as? UIImage {
-                print("Image successfully extracted from info dictionary")
-                DispatchQueue.main.async {
-                    self.parent.image = image
-                    print("Image assigned to binding: \(image.size.width)x\(image.size.height)")
-                    self.parent.dismiss()
-                    
-                    // Delay showing recognition to ensure picker is dismissed
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        // We need to check the showChatGPTScan flag ONCE and then take action
-                        let shouldShowChatGPTScan = self.parent.showChatGPTScan
-                        print("Should show ChatGPT scan: \(shouldShowChatGPTScan)")
-                        
-                        if shouldShowChatGPTScan {
-                            // If ChatGPT scan was requested, show that
-                            // We DO NOT set showChatGPTScan to true again, as it's already true
-                            // We just ensure recognition is false to avoid both screens showing
-                            self.parent.showRecognition = false
-                        } else {
-                            // Otherwise show regular recognition
-                            self.parent.showRecognition = true
-                        }
-                    }
-                }
-            } else {
-                print("Failed to extract image from info dictionary")
-                parent.dismiss()
+                parent.image = image
+                parent.showRecognition = true
             }
+            parent.dismiss()
         }
         
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            print("Image picker cancelled")
             parent.dismiss()
+        }
+    }
+}
+
+// MARK: - Home View Components
+struct SearchBarView: View {
+    @Binding var searchText: String
+    @Binding var isSearching: Bool
+    let filteredResults: [String]
+    let onResultSelected: (String) -> Void
+    
+    var body: some View {
+        VStack {
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.gray)
+                TextField("Search foods", text: $searchText)
+                    .onChange(of: searchText) { oldValue, newValue in
+                        isSearching = !newValue.isEmpty
+                    }
+            }
+            .padding()
+            .background(Color(.systemGray6))
+            .cornerRadius(15)
+            .padding(.horizontal)
+            
+            if isSearching {
+                SearchResultsView(
+                    results: filteredResults,
+                    onResultSelected: onResultSelected
+                )
+            }
+        }
+    }
+}
+
+struct SearchResultsView: View {
+    let results: [String]
+    let onResultSelected: (String) -> Void
+    
+    var body: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading) {
+                ForEach(results, id: \.self) { food in
+                    Button(action: { onResultSelected(food) }) {
+                        Text(food)
+                            .padding(.vertical, 8)
+                            .padding(.horizontal)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    Divider()
+                }
+            }
+        }
+        .frame(maxHeight: 200)
+        .background(Color(.systemBackground))
+        .cornerRadius(15)
+        .padding(.horizontal)
+    }
+}
+
+struct ScanOptionsView: View {
+    let onCameraSelected: () -> Void
+    let onGallerySelected: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 15) {
+            Text("Scan Food")
+                .font(.title2)
+                .fontWeight(.bold)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal)
+            
+            HStack(spacing: 20) {
+                ScanOptionButton(
+                    title: "Take Photo",
+                    icon: "camera.fill",
+                    color: .green,
+                    action: onCameraSelected
+                )
+                
+                ScanOptionButton(
+                    title: "From Gallery",
+                    icon: "photo.on.rectangle",
+                    color: .blue,
+                    action: onGallerySelected
+                )
+            }
+            .padding(.horizontal)
+        }
+        .padding(.vertical)
+    }
+}
+
+struct ScanOptionButton: View {
+    let title: String
+    let icon: String
+    let color: Color
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(color.opacity(0.2))
+                        .frame(width: 60, height: 60)
+                    
+                    Image(systemName: icon)
+                        .font(.system(size: 24))
+                        .foregroundColor(color)
+                }
+                
+                Text(title)
+                    .font(.headline)
+                    .foregroundColor(.primary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color(.systemGray6))
+            .cornerRadius(15)
+        }
+    }
+}
+
+struct QuickAccessGridView: View {
+    @Binding var tabSelection: Int
+    
+    var body: some View {
+        VStack(spacing: 15) {
+            Text("Quick Access")
+                .font(.title2)
+                .fontWeight(.bold)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal)
+            
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 20) {
+                QuickAccessButton(icon: "chart.bar.fill", title: "Analytics", color: .blue) {
+                    tabSelection = 3
+                }
+                QuickAccessButton(icon: "clock.fill", title: "History", color: .purple) {
+                    tabSelection = 4
+                }
+                QuickAccessButton(icon: "heart.fill", title: "Recommendations", color: .red) {
+                    tabSelection = 1
+                }
+                QuickAccessButton(icon: "person.fill", title: "Profile", color: .orange) {
+                    tabSelection = 5
+                }
+                QuickAccessButton(icon: "star.fill", title: "Premium", color: .yellow) {
+                    // Premium action
+                }
+                QuickAccessButton(icon: "fork.knife", title: "Meal Plans", color: .green) {
+                    // Meal plans action
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
+}
+
+struct QuickAccessButton: View {
+    let icon: String
+    let title: String
+    let color: Color
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            VStack {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(color.opacity(0.2))
+                        .frame(width: 50, height: 50)
+                    
+                    Image(systemName: icon)
+                        .font(.system(size: 24))
+                        .foregroundColor(color)
+                }
+                
+                Text(title)
+                    .font(.caption)
+                    .foregroundColor(.primary)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
         }
     }
 }
 
 struct HomeView: View {
     @State private var searchText = ""
-    @State private var showingImagePicker = false
-    @State private var showingLegacyPicker = false
-    @State private var searchResults: [String] = []
     @State private var isSearching = false
     @State private var selectedImage: UIImage?
     @State private var showingPreview = false
     @State private var showingRecognition = false
-    @State private var showingChatGPTScan = false
-    @StateObject private var chatGPTScanService = ChatGPTScanService()
+    @State private var showingLegacyPicker = false
     @Binding var tabSelection: Int
     @Binding var showingCamera: Bool
     
-    // Sample food database for search
     private let foodDatabase = [
         "Apple", "Banana", "Chicken Breast", "Greek Yogurt",
         "Salmon", "Quinoa", "Avocado", "Sweet Potato",
         "Broccoli", "Eggs", "Oatmeal", "Almonds"
     ]
     
-    var filteredResults: [String] {
-        if searchText.isEmpty {
-            return []
-        }
+    private var filteredResults: [String] {
+        guard !searchText.isEmpty else { return [] }
         return foodDatabase.filter { $0.lowercased().contains(searchText.lowercased()) }
     }
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
-                    // Search Bar with Results
-                    VStack {
-                        HStack {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundColor(.gray)
-                            TextField("Search foods", text: $searchText)
-                                .onChange(of: searchText) { oldValue, newValue in
-                                    isSearching = !newValue.isEmpty
-                                }
-                        }
-                        .padding()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(15)
-                        .padding(.horizontal)
-                        
-                        // Search Results
-                        if isSearching {
-                            ScrollView {
-                                LazyVStack(alignment: .leading) {
-                                    ForEach(filteredResults, id: \.self) { food in
-                                        Button(action: {
-                                            searchText = food
-                                            isSearching = false
-                                        }) {
-                                            Text(food)
-                                                .padding(.vertical, 8)
-                                                .padding(.horizontal)
-                                                .frame(maxWidth: .infinity, alignment: .leading)
-                                        }
-                                        Divider()
-                                    }
-                                }
-                            }
-                            .frame(maxHeight: 200)
-                            .background(Color(.systemBackground))
-                            .cornerRadius(15)
-                            .padding(.horizontal)
-                        }
+                    SearchBarView(
+                        searchText: $searchText,
+                        isSearching: $isSearching,
+                        filteredResults: filteredResults
+                    ) { result in
+                        searchText = result
+                        isSearching = false
                     }
                     
-                    // Scan Options Card
-                    VStack(spacing: 15) {
-                        Text("Scan Food")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal)
-                        
-                        HStack(spacing: 20) {
-                            // Camera option
-                            Button {
-                                showingCamera = true
-                            } label: {
-                                VStack(spacing: 12) {
-                                    ZStack {
-                                        Circle()
-                                            .fill(Color.green.opacity(0.2))
-                                            .frame(width: 60, height: 60)
-                                        
-                                        Image(systemName: "camera.fill")
-                                            .font(.system(size: 24))
-                                            .foregroundColor(.green)
-                                    }
-                                    
-                                    Text("Take Photo")
-                                        .font(.headline)
-                                        .foregroundColor(.primary)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color(.systemGray6))
-                                .cornerRadius(15)
-                            }
-                            
-                            // Gallery option
-                            Button {
-                                print("From Gallery button tapped")
-                                selectedImage = nil // Reset the image
-                                showingChatGPTScan = false // Ensure ChatGPT scan is not shown
-                                showingRecognition = false // Reset the recognition flag
-                                showingLegacyPicker = true
-                            } label: {
-                                VStack(spacing: 12) {
-                                    ZStack {
-                                        Circle()
-                                            .fill(Color.blue.opacity(0.2))
-                                            .frame(width: 60, height: 60)
-                                        
-                                        Image(systemName: "photo.on.rectangle")
-                                            .font(.system(size: 24))
-                                            .foregroundColor(.blue)
-                                    }
-                                    
-                                    Text("From Gallery")
-                                        .font(.headline)
-                                        .foregroundColor(.primary)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color(.systemGray6))
-                                .cornerRadius(15)
-                            }
-                            
-                            // ChatGPT Scan option
-                            Button {
-                                print("ChatGPT Scan button tapped")
-                                selectedImage = nil // Reset the image
-                                showingChatGPTScan = true // Set the flag for ChatGPT scan
-                                showingRecognition = false // Ensure regular recognition is not shown
-                                showingLegacyPicker = true // Show the picker
-                            } label: {
-                                VStack(spacing: 12) {
-                                    ZStack {
-                                        Circle()
-                                            .fill(Color.purple.opacity(0.2))
-                                            .frame(width: 60, height: 60)
-                                        
-                                        Image(systemName: "brain")
-                                            .font(.system(size: 24))
-                                            .foregroundColor(.purple)
-                                    }
-                                    
-                                    Text("ChatGPT Scan")
-                                        .font(.headline)
-                                        .foregroundColor(.primary)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color(.systemGray6))
-                                .cornerRadius(15)
-                            }
+                    ScanOptionsView(
+                        onCameraSelected: { showingCamera = true },
+                        onGallerySelected: {
+                            selectedImage = nil
+                            showingRecognition = false
+                            showingLegacyPicker = true
                         }
-                        .padding(.horizontal)
-                    }
-                    .padding(.vertical)
+                    )
                     
-                    // Main Features Grid
-                    VStack(spacing: 15) {
-                        Text("Quick Access")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal)
-                        
-                    LazyVGrid(columns: [
-                        GridItem(.flexible()),
-                        GridItem(.flexible()),
-                        GridItem(.flexible())
-                    ], spacing: 20) {
-                            FeatureButton(icon: "chart.bar.fill", title: "Analytics", color: .blue)
-                            .onTapGesture {
-                                    tabSelection = 3
-                            }
-                            FeatureButton(icon: "clock.fill", title: "History", color: .purple)
-                            .onTapGesture {
-                                    tabSelection = 4
-                                }
-                            FeatureButton(icon: "heart.fill", title: "Recommendations", color: .red)
-                                .onTapGesture {
-                                    tabSelection = 1
-                                }
-                            FeatureButton(icon: "person.fill", title: "Profile", color: .orange)
-                                .onTapGesture {
-                                    tabSelection = 5
-                                }
-                        FeatureButton(icon: "star.fill", title: "Premium", color: .yellow)
-                            FeatureButton(icon: "fork.knife", title: "Meal Plans", color: .green)
-                    }
-                        .padding(.horizontal)
-                    }
+                    QuickAccessGridView(tabSelection: $tabSelection)
                     
-                    // Replace the existing Featured Meals section with our new view
                     FeaturedMealsView()
                     
                     Spacer(minLength: 50)
                 }
             }
             .navigationTitle("Food Scanner Pro")
-            .sheet(isPresented: $showingImagePicker) {
-                GalleryImagePicker(image: $selectedImage)
-            }
             .sheet(isPresented: $showingPreview) {
                 if let image = selectedImage {
                     ImagePreviewView(image: image, isPresented: $showingPreview, tabSelection: $tabSelection)
                 }
             }
             .sheet(isPresented: $showingLegacyPicker) {
-                LegacyImagePicker(image: $selectedImage, showRecognition: $showingRecognition, showChatGPTScan: $showingChatGPTScan)
+                LegacyImagePicker(image: $selectedImage, showRecognition: $showingRecognition)
             }
         }
         .fullScreenCover(isPresented: $showingRecognition) {
-            FoodRecognitionView(
-                image: selectedImage ?? UIImage(),
-                classifier: FoodClassifier(),
-                rootIsPresented: $showingRecognition,
-                tabSelection: $tabSelection
-            )
-        }
-        .fullScreenCover(isPresented: $showingChatGPTScan) {
-            ChatGPTScanWrapper(
-                selectedImage: selectedImage,
-                chatGPTScanService: chatGPTScanService,
-                rootIsPresented: $showingChatGPTScan,
-                tabSelection: $tabSelection
-            )
+            if let image = selectedImage {
+                FoodRecognitionView(
+                    image: image,
+                    classifier: FoodClassifier(),
+                    rootIsPresented: $showingRecognition,
+                    tabSelection: $tabSelection
+                )
+            }
         }
         .onChange(of: selectedImage) { oldValue, newValue in
-            print("selectedImage changed: \(newValue != nil ? "Image selected" : "No image")")
-            if newValue != nil && showingImagePicker {
-                print("Image selected from PHPicker, closing picker and showing preview")
-                showingImagePicker = false
+            if newValue != nil && !showingLegacyPicker {
                 showingPreview = true
-            } else if newValue != nil && showingLegacyPicker {
-                print("Image selected from legacy picker, picker should auto-dismiss")
-                // The picker will handle showing either recognition or ChatGPT scan
-                // based on the flags we've set
             }
         }
         .onChange(of: showingRecognition) { oldValue, newValue in
-            print("showingRecognition changed to: \(newValue)")
-            // If recognition view is dismissed, reset the selected image
             if !newValue {
                 selectedImage = nil
             }
@@ -537,47 +512,6 @@ struct FeatureButton: View {
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
-    }
-}
-
-struct ChatGPTScanWrapper: View {
-    let selectedImage: UIImage?
-    let chatGPTScanService: ChatGPTScanService
-    @Binding var rootIsPresented: Bool
-    @Binding var tabSelection: Int
-    
-    var body: some View {
-        if selectedImage == nil {
-            // Error view when no image is available
-            return AnyView(
-                VStack {
-                    Text("Error: No image selected")
-                        .font(.headline)
-                    Button("Go Back") {
-                        rootIsPresented = false
-                    }
-                    .padding()
-                    .background(Color.blue)
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
-                    .padding(.top, 20)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(.systemBackground))
-            )
-        } else {
-            // Unwrap the image safely
-            let unwrappedImage = selectedImage!
-            print("Showing ChatGPTScanView with image: \(unwrappedImage.size.width)x\(unwrappedImage.size.height)")
-            return AnyView(
-                ChatGPTScanView(
-                    image: unwrappedImage,
-                    scanService: chatGPTScanService,
-                    rootIsPresented: $rootIsPresented,
-                    tabSelection: $tabSelection
-                )
-            )
-        }
     }
 }
 
