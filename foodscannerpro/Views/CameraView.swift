@@ -9,7 +9,7 @@ struct CameraView: View {
     @StateObject private var chatGPTScanService = ChatGPTScanService()
     @State private var showingSettings = false
     @State private var showingAPISettings = false
-    @State private var recognitionMode: RecognitionMode = .standard
+    @State private var recognitionMode: RecognitionMode = RecognitionMode.getLastSelected()
     @State private var capturedImage: UIImage?
     @State private var showingRecognition = false
     @State private var showingChatGPTScan = false
@@ -136,12 +136,15 @@ struct CameraView: View {
             }
             .sheet(isPresented: $isGalleryPickerPresented) {
                 ModernImagePicker(selectedImage: $capturedImage, sourceType: .photoLibrary)
+                    .onDisappear {
+                        if capturedImage != nil {
+                            showingRecognition = true
+                        }
+                    }
             }
             .onChange(of: capturedImage) { oldValue, newValue in
                 if newValue != nil && isGalleryPickerPresented {
-                    // Default to regular recognition for gallery images
                     isGalleryPickerPresented = false
-                    showingRecognition = true
                 }
             }
             .onAppear {
@@ -176,6 +179,7 @@ struct RecognitionSettingsView: View {
                     .contentShape(Rectangle())
                     .onTapGesture {
                         selectedMode = mode
+                        RecognitionMode.saveLastSelected(mode)
                         isPresented = false
                     }
                 }

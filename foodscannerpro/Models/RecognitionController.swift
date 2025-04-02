@@ -84,7 +84,7 @@ class RecognitionController: ObservableObject {
                     FoodRecognitionResult(
                         id: UUID(),
                         name: mlResult.name.capitalized,
-                        confidence: Double(mlResult.confidence),
+                        confidence: Float(mlResult.confidence),
                         nutrition: nil, // Quick scan doesn't provide nutrition info
                         healthConsiderations: [],
                         allergens: [],
@@ -121,7 +121,7 @@ class RecognitionController: ObservableObject {
         return [FoodRecognitionResult(
             id: UUID(),
             name: scanResult.foodName,
-            confidence: scanResult.confidenceScore,
+            confidence: Float(scanResult.confidenceScore),
             nutrition: NutritionInfo(
                 calories: Int(scanResult.calories),
                 protein: scanResult.protein,
@@ -174,7 +174,7 @@ enum RecognitionError: Error {
 struct FoodRecognitionResult: Identifiable {
     let id: UUID
     let name: String
-    let confidence: Double
+    let confidence: Float
     let nutrition: NutritionInfo?
     let healthConsiderations: [String]
     let allergens: [String]

@@ -135,4 +135,36 @@ struct NutrientIDs {
     static let iron = 1089
     static let vitaminA = 1106
     static let vitaminC = 1162
+}
+
+// MARK: - Conversion Extensions
+
+extension FoodNutritionInfo {
+    /// Converts FoodNutritionInfo to NutritionInfo
+    func toNutritionInfo() -> NutritionInfo {
+        // Create vitamins dictionary
+        let vitamins: [String: Double] = [
+            "A": vitaminA ?? 0.0,
+            "C": vitaminC ?? 0.0
+        ]
+        
+        // Create minerals dictionary
+        let minerals: [String: Double] = [
+            "Calcium": calcium ?? 0.0,
+            "Iron": iron ?? 0.0,
+            "Potassium": potassium ?? 0.0,
+            "Sodium": sodium ?? 0.0
+        ]
+        
+        return NutritionInfo(
+            calories: calories,
+            protein: protein,
+            carbs: carbs,
+            fats: fat,
+            fiber: fiber,
+            sugar: sugar,
+            vitamins: vitamins,
+            minerals: minerals
+        )
+    }
 } 

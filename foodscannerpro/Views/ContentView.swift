@@ -581,20 +581,41 @@ struct ChatGPTScanWrapper: View {
     }
 }
 
+// Add this class before the FoodClassifier class
+class AdjustableObservation {
+    let identifier: String
+    var confidence: Float
+    
+    init(observation: VNClassificationObservation) {
+        self.identifier = observation.identifier
+        self.confidence = observation.confidence
+    }
+    
+    init(identifier: String, confidence: Float) {
+        self.identifier = identifier
+        self.confidence = confidence
+    }
+}
+
 class FoodClassifier: ObservableObject {
     @Published var recognizedObjects: [RecognizedFood] = []
     @Published var isProcessing = false
     @Published var healthRecommendations: [FoodRecommendation] = []
+    
+    // Add a serial queue for thread-safe array updates
+    private let updateQueue = DispatchQueue(label: "com.foodscannerpro.arrayupdates")
     
     // Expanded food keywords for better recognition
     private let foodKeywords = [
         // Basic food categories
         "food", "fruit", "vegetable", "meat", "dish", "bread", "cake", "soup", "salad", "sandwich",
         
+        // Common fruits with high priority (add these at the beginning)
+        "banana", "apple", "orange", "grape", "strawberry", "blueberry", "raspberry", "pineapple",
+        
         // Fruits
-        "apple", "banana", "orange", "grape", "strawberry", "blueberry", "raspberry", "pineapple",
         "mango", "peach", "pear", "plum", "watermelon", "kiwi", "cherry", "lemon", "lime", "coconut",
-        "avocado", "fig", "date", "grapefruit", "pomegranate", "apricot", "blackberry", "cantaloupe",
+        "fig", "date", "grapefruit", "pomegranate", "apricot", "blackberry", "cantaloupe",
         
         // Vegetables
         "broccoli", "spinach", "kale", "lettuce", "cabbage", "carrot", "potato", "tomato", "cucumber",
@@ -647,8 +668,8 @@ class FoodClassifier: ObservableObject {
     ]
     
     // Confidence thresholds
-    private let minimumConfidence: Float = 0.3
-    private let highConfidenceThreshold: Float = 0.7
+    private let minimumConfidence: Float = 0.4
+    private let highConfidenceThreshold: Float = 0.8
     
     // Reference to the nutrition service
     private let nutritionService = NutritionService.shared
@@ -661,7 +682,7 @@ class FoodClassifier: ObservableObject {
     private let nutritionGroup = DispatchGroup()
     
     // Feedback manager for improving recognition
-    private let feedbackManager = FeedbackManager()
+    private let feedbackManager = FeedbackManager.shared
     
     init() {
         // Load feedback data when initialized
@@ -682,83 +703,46 @@ class FoodClassifier: ObservableObject {
                 return
             }
             
-            // Create a request handler
-            let requestHandler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+            // Create a request handler with orientation
+            let requestHandler = VNImageRequestHandler(cgImage: cgImage, orientation: .up, options: [:])
             
-            // Create an image classification request with more accurate settings
-            let classificationRequest = VNClassifyImageRequest { [weak self] request, error in
-                guard let self = self else { return }
-                
-                if let error = error {
-                    print("Classification error: \(error)")
-                    DispatchQueue.main.async {
-                        self.isProcessing = false
-                    }
-                    return
-                }
+            // Create classification request
+            let classificationRequest = VNClassifyImageRequest()
+            
+            do {
+                // Perform the classification request
+                try requestHandler.perform([classificationRequest])
                 
                 // Process classification results
-                guard let observations = request.results as? [VNClassificationObservation] else {
-                    DispatchQueue.main.async {
-                        self.isProcessing = false
-                    }
-                    return
-                }
-                
-                // Print all observations for debugging
-                print("All observations:")
-                for (index, observation) in observations.prefix(20).enumerated() {
-                    print("\(index): \(observation.identifier) - \(observation.confidence)")
-                }
-                
-                // Filter for food-related items with confidence > minimumConfidence
-                var foodObservations = observations.filter { observation in
-                    // Check if the identifier contains any food keyword
-                    let containsFoodKeyword = self.foodKeywords.contains { keyword in
-                        observation.identifier.lowercased().contains(keyword.lowercased())
-                    }
+                if let observations = classificationRequest.results as? [VNClassificationObservation] {
+                    // Convert VNClassificationObservation to AdjustableObservation
+                    var adjustableObservations = observations.map { AdjustableObservation(observation: $0) }
                     
-                    // Apply confidence threshold
-                    return containsFoodKeyword && observation.confidence > self.minimumConfidence
-                }
-                
-                // Apply feedback-based corrections
-                self.applyFeedbackCorrections(to: &foodObservations)
-                
-                // Sort by confidence
-                foodObservations.sort { $0.confidence > $1.confidence }
-                
-                // Limit to top 5 results
-                let topObservations = Array(foodObservations.prefix(5))
-                
-                // If no food items detected, try with a lower threshold
-                if topObservations.isEmpty {
-                    let lowConfidenceObservations = observations.filter { observation in
-                        let containsFoodKeyword = self.foodKeywords.contains { keyword in
-                            observation.identifier.lowercased().contains(keyword.lowercased())
-                        }
-                        return containsFoodKeyword && observation.confidence > 0.2
-                    }.sorted { $0.confidence > $1.confidence }.prefix(3)
+                    // Step 1: Filter by food keywords
+                    adjustableObservations = self.filterByFoodKeywords(adjustableObservations)
                     
-                    if lowConfidenceObservations.isEmpty {
+                    // Step 2: Filter by minimum confidence
+                    adjustableObservations = self.filterByConfidence(adjustableObservations)
+                    
+                    // Step 3: Apply feedback-based corrections
+                    self.applyFeedbackCorrections(to: &adjustableObservations)
+                    
+                    // Step 4: Sort by confidence
+                    adjustableObservations.sort { $0.confidence > $1.confidence }
+                    
+                    // Step 5: Process the results
                         DispatchQueue.main.async {
-                            self.isProcessing = false
+                        if !adjustableObservations.isEmpty {
+                            self.processObservations(Array(adjustableObservations.prefix(5)))
+                        } else {
+                            // Convert observations for backup processing
+                            let originalObservations = observations.prefix(10).map { observation in
+                                VNClassificationObservation(identifier: observation.identifier, confidence: observation.confidence)
+                            }
+                            self.tryBackupRecognition(originalObservations)
                         }
-                        return
                     }
-                    
-                    self.processObservations(Array(lowConfidenceObservations))
-                } else {
-                    self.processObservations(topObservations)
                 }
-            }
-            
-            // Set revision to 2 for better accuracy
-            classificationRequest.revision = VNClassifyImageRequestRevision2
-            
-            // Try to perform the request
-            do {
-                try requestHandler.perform([classificationRequest])
             } catch {
                 print("Failed to perform classification: \(error)")
                 DispatchQueue.main.async {
@@ -768,9 +752,28 @@ class FoodClassifier: ObservableObject {
         }
     }
     
-    private func processObservations(_ observations: [VNClassificationObservation]) {
+    private func filterByFoodKeywords(_ observations: [AdjustableObservation]) -> [AdjustableObservation] {
+        observations.filter { observation in
+            let name = observation.identifier.lowercased()
+            return self.foodKeywords.contains { keyword in
+                name.contains(keyword.lowercased())
+            }
+        }
+    }
+    
+    private func filterByConfidence(_ observations: [AdjustableObservation]) -> [AdjustableObservation] {
+        observations.filter { observation in
+            observation.confidence > self.minimumConfidence
+        }
+    }
+    
+    // Update the method signature to use AdjustableObservation
+    private func processObservations(_ observations: [AdjustableObservation]) {
         // Create a temporary array to hold recognized objects
         var tempRecognizedObjects: [RecognizedFood] = []
+        let processingQueue = DispatchQueue(label: "com.foodscannerpro.processing", attributes: .concurrent)
+        let processingGroup = DispatchGroup()
+        let syncQueue = DispatchQueue(label: "com.foodscannerpro.sync")
         
         // Process each observation
         for observation in observations {
@@ -778,305 +781,314 @@ class FoodClassifier: ObservableObject {
             let name = cleanUpFoodName(observation.identifier)
             
             // Enter the dispatch group
-            self.nutritionGroup.enter()
+            processingGroup.enter()
             
             // Get nutrition info on a background queue
-            self.nutritionQueue.async {
-                self.nutritionService.getNutritionInfo(for: name) { result in
-                    switch result {
-                    case .success(let nutritionInfo):
-                        // Convert NutritionInfo to FoodNutrition
-                        let foodNutrition = FoodNutrition(
-                            calories: Double(nutritionInfo.calories),
-                            protein: nutritionInfo.protein,
-                            carbs: nutritionInfo.carbs,
-                            fats: nutritionInfo.fat
-                        )
-                        
-                        // Create additional nutrition info
-                        let additionalNutrition = AdditionalNutrition(
-                            fiber: nutritionInfo.fiber,
-                            sugar: nutritionInfo.sugar,
-                            sodium: nutritionInfo.sodium,
-                            cholesterol: nutritionInfo.cholesterol,
-                            potassium: nutritionInfo.potassium,
-                            calcium: nutritionInfo.calcium,
-                            iron: nutritionInfo.iron,
-                            vitaminA: nutritionInfo.vitaminA,
-                            vitaminC: nutritionInfo.vitaminC,
-                            servingSize: nutritionInfo.servingSize,
-                            servingUnit: nutritionInfo.servingUnit
-                        )
-                        
-                        // Check for dietary warnings
-                        let warnings = self.healthService.checkForWarnings(foodName: nutritionInfo.foodName)
-                        
-                        // Check if this food is recommended
-                        let isRecommended = self.isRecommendedFood(nutritionInfo.foodName)
-                        let recommendationReason = self.getRecommendationReason(nutritionInfo.foodName)
-                        
-                        // Create RecognizedFood object
-                        let recognizedFood = RecognizedFood(
-                            name: nutritionInfo.foodName,
-                            confidence: observation.confidence,
-                            boundingBox: .init(x: 0, y: 0, width: 1, height: 1),
-                            estimatedNutrition: foodNutrition,
-                            additionalNutrition: additionalNutrition,
-                            nutritionSource: nutritionInfo.source,
-                            dietaryWarnings: warnings.isEmpty ? nil : warnings,
-                            isRecommended: isRecommended,
-                            recommendationReason: recommendationReason
-                        )
-                        
-                        // Add to temporary array
+            processingQueue.async {
+                self.processNutritionInfo(name: name, observation: observation) { recognizedFood in
+                    syncQueue.async {
                         tempRecognizedObjects.append(recognizedFood)
-                        
-                    case .failure(let error):
-                        print("Failed to get nutrition info for \(name): \(error.localizedDescription)")
-                        
-                        // Create a default RecognizedFood object
-                        let defaultNutrition = FoodNutrition(
-                            calories: 100,
-                            protein: 5,
-                            carbs: 15,
-                            fats: 3
-                        )
-                        
-                        let additionalNutrition = AdditionalNutrition(
-                            fiber: nil,
-                            sugar: nil,
-                            sodium: nil,
-                            cholesterol: nil,
-                            potassium: nil,
-                            calcium: nil,
-                            iron: nil,
-                            vitaminA: nil,
-                            vitaminC: nil,
-                            servingSize: nil,
-                            servingUnit: nil
-                        )
-                        
-                        // Check for dietary warnings
-                        let warnings = self.healthService.checkForWarnings(foodName: name)
-                        
-                        // Check if this food is recommended
-                        let isRecommended = self.isRecommendedFood(name)
-                        let recommendationReason = self.getRecommendationReason(name)
-                        
-                        let recognizedFood = RecognizedFood(
-                            name: name,
-                            confidence: observation.confidence,
-                            boundingBox: .init(x: 0, y: 0, width: 1, height: 1),
-                            estimatedNutrition: defaultNutrition,
-                            additionalNutrition: additionalNutrition,
-                            nutritionSource: nil,
-                            dietaryWarnings: warnings.isEmpty ? nil : warnings,
-                            isRecommended: isRecommended,
-                            recommendationReason: recommendationReason
-                        )
-                        
-                        // Add to temporary array
-                        tempRecognizedObjects.append(recognizedFood)
+                        processingGroup.leave()
                     }
-                    
-                    // Leave the dispatch group
-                    self.nutritionGroup.leave()
                 }
             }
         }
         
         // Wait for all nutrition lookups to complete
-        nutritionGroup.notify(queue: .main) {
-            // If no results, try a backup approach
-            if tempRecognizedObjects.isEmpty {
-                self.tryBackupRecognition(observations)
-            } else {
-                // Sort by confidence
-                self.recognizedObjects = tempRecognizedObjects.sorted(by: { $0.confidence > $1.confidence })
-                self.isProcessing = false
-            }
-        }
-    }
-    
-    private func tryBackupRecognition(_ observations: [VNClassificationObservation]) {
-        // Create a backup array
-        var backupObjects: [RecognizedFood] = []
-        let backupGroup = DispatchGroup()
-        
-        // Try with a broader set of keywords
-        for observation in observations.prefix(10) {
-            // Extract potential food names from the identifier
-            let components = observation.identifier.components(separatedBy: ",")
-            for component in components {
-                let name = component.trimmingCharacters(in: .whitespacesAndNewlines)
-                
-                // Skip very short names
-                if name.count < 3 {
-                    continue
-                }
-                
-                // Enter the dispatch group
-                backupGroup.enter()
-                
-                // Try to get nutrition info
-                self.nutritionQueue.async {
-                    self.nutritionService.getNutritionInfo(for: name) { result in
-                        switch result {
-                        case .success(let nutritionInfo):
-                            // Convert NutritionInfo to FoodNutrition
-                            let foodNutrition = FoodNutrition(
-                                calories: Double(nutritionInfo.calories),
-                                protein: nutritionInfo.protein,
-                                carbs: nutritionInfo.carbs,
-                                fats: nutritionInfo.fat
-                            )
-                            
-                            // Create additional nutrition info
-                            let additionalNutrition = AdditionalNutrition(
-                                fiber: nutritionInfo.fiber,
-                                sugar: nutritionInfo.sugar,
-                                sodium: nutritionInfo.sodium,
-                                cholesterol: nutritionInfo.cholesterol,
-                                potassium: nutritionInfo.potassium,
-                                calcium: nutritionInfo.calcium,
-                                iron: nutritionInfo.iron,
-                                vitaminA: nutritionInfo.vitaminA,
-                                vitaminC: nutritionInfo.vitaminC,
-                                servingSize: nutritionInfo.servingSize,
-                                servingUnit: nutritionInfo.servingUnit
-                            )
-                            
-                            // Check for dietary warnings
-                            let warnings = self.healthService.checkForWarnings(foodName: nutritionInfo.foodName)
-                            
-                            // Check if this food is recommended
-                            let isRecommended = self.isRecommendedFood(nutritionInfo.foodName)
-                            let recommendationReason = self.getRecommendationReason(nutritionInfo.foodName)
-                            
-                            // Create RecognizedFood object
-                            let recognizedFood = RecognizedFood(
-                                name: nutritionInfo.foodName,
-                                confidence: observation.confidence,
-                                boundingBox: .init(x: 0, y: 0, width: 1, height: 1),
-                                estimatedNutrition: foodNutrition,
-                                additionalNutrition: additionalNutrition,
-                                nutritionSource: nutritionInfo.source,
-                                dietaryWarnings: warnings.isEmpty ? nil : warnings,
-                                isRecommended: isRecommended,
-                                recommendationReason: recommendationReason
-                            )
-                            
-                            // Add to backup array
-                            backupObjects.append(recognizedFood)
-                            
-                        case .failure(let error):
-                            print("Failed to get backup nutrition info for \(name): \(error.localizedDescription)")
-                            
-                            // Create a default RecognizedFood object
-                            let defaultNutrition = FoodNutrition(
-                                calories: 100,
-                                protein: 5,
-                                carbs: 15,
-                                fats: 3
-                            )
-                            
-                            let additionalNutrition = AdditionalNutrition(
-                                fiber: nil,
-                                sugar: nil,
-                                sodium: nil,
-                                cholesterol: nil,
-                                potassium: nil,
-                                calcium: nil,
-                                iron: nil,
-                                vitaminA: nil,
-                                vitaminC: nil,
-                                servingSize: nil,
-                                servingUnit: nil
-                            )
-                            
-                            // Check for dietary warnings
-                            let warnings = self.healthService.checkForWarnings(foodName: name)
-                            
-                            // Check if this food is recommended
-                            let isRecommended = self.isRecommendedFood(name)
-                            let recommendationReason = self.getRecommendationReason(name)
-                            
-                            let recognizedFood = RecognizedFood(
-                                name: name,
-                                confidence: observation.confidence,
-                                boundingBox: .init(x: 0, y: 0, width: 1, height: 1),
-                                estimatedNutrition: defaultNutrition,
-                                additionalNutrition: additionalNutrition,
-                                nutritionSource: nil,
-                                dietaryWarnings: warnings.isEmpty ? nil : warnings,
-                                isRecommended: isRecommended,
-                                recommendationReason: recommendationReason
-                            )
-                            
-                            // Add to backup array
-                            backupObjects.append(recognizedFood)
-                        }
-                        
-                        // Leave the dispatch group
-                        backupGroup.leave()
-                    }
-                }
-            }
-        }
-        
-        // Wait for all backup nutrition lookups to complete
-        backupGroup.notify(queue: .main) {
-            self.recognizedObjects = backupObjects
+        processingGroup.notify(queue: .main) {
+            // Sort by confidence
+            self.recognizedObjects = tempRecognizedObjects.sorted(by: { $0.confidence > $1.confidence })
             self.isProcessing = false
         }
     }
+
+    private func processNutritionInfo(
+        name: String,
+        observation: AdjustableObservation,
+        completion: @escaping (RecognizedFood) -> Void
+    ) {
+        self.nutritionService.getNutritionInfo(for: name) { result in
+            switch result {
+            case .success(let nutritionInfo):
+                let foodNutrition = FoodNutrition(
+                    calories: Double(nutritionInfo.calories),
+                    protein: nutritionInfo.protein,
+                    carbs: nutritionInfo.carbs,
+                    fats: nutritionInfo.fat
+                )
+                
+                let additionalNutrition = self.createAdditionalNutrition(from: nutritionInfo.toNutritionInfo())
+                
+                let warnings = self.healthService.checkForWarnings(foodName: name)
+                let isRecommended = self.isRecommendedFood(name)
+                let recommendationReason = self.getRecommendationReason(name)
+                
+                let recognizedFood = RecognizedFood(
+                    name: name,
+                    confidence: observation.confidence,
+                    boundingBox: .init(x: 0, y: 0, width: 1, height: 1),
+                    estimatedNutrition: foodNutrition,
+                    additionalNutrition: additionalNutrition,
+                    nutritionSource: nutritionInfo.source,
+                    dietaryWarnings: warnings.isEmpty ? nil : warnings,
+                    isRecommended: isRecommended,
+                    recommendationReason: recommendationReason
+                )
+                completion(recognizedFood)
+                
+            case .failure(let error):
+                print("Failed to get nutrition info for \(name): \(error.localizedDescription)")
+                let defaultFood = self.createDefaultRecognizedFood(
+                    name: name,
+                    confidence: observation.confidence
+                )
+                completion(defaultFood)
+            }
+        }
+    }
     
-    // Apply feedback-based corrections to improve recognition
-    private func applyFeedbackCorrections(to observations: inout [VNClassificationObservation]) {
+    private func createRecognizedFood(
+        from nutritionInfo: FoodNutritionInfo,
+        observation: AdjustableObservation
+    ) -> RecognizedFood {
+        // Create food nutrition
+        let foodNutrition = FoodNutrition(
+            calories: Double(nutritionInfo.calories),
+            protein: nutritionInfo.protein,
+            carbs: nutritionInfo.carbs,
+            fats: nutritionInfo.fat  // Changed from fats to fat to match FoodNutritionInfo
+        )
+        
+        // Create additional nutrition info
+        let additionalNutrition = self.createAdditionalNutrition(from: nutritionInfo.toNutritionInfo())
+        
+        // Check for dietary warnings
+        let warnings = self.healthService.checkForWarnings(foodName: nutritionInfo.foodName)
+        
+        // Check if this food is recommended
+        let isRecommended = self.isRecommendedFood(nutritionInfo.foodName)
+        let recommendationReason = self.getRecommendationReason(nutritionInfo.foodName)
+        
+        return RecognizedFood(
+            name: nutritionInfo.foodName,
+            confidence: observation.confidence,
+            boundingBox: .init(x: 0, y: 0, width: 1, height: 1),
+            estimatedNutrition: foodNutrition,
+            additionalNutrition: additionalNutrition,
+            nutritionSource: nutritionInfo.source,
+            dietaryWarnings: warnings.isEmpty ? nil : warnings,
+            isRecommended: isRecommended,
+            recommendationReason: recommendationReason
+        )
+    }
+    
+    private func createAdditionalNutrition(from nutritionInfo: NutritionInfo) -> AdditionalNutrition {
+        return AdditionalNutrition(
+            fiber: nutritionInfo.fiber,
+            sugar: nutritionInfo.sugar,
+            sodium: nutritionInfo.minerals["sodium"],
+            cholesterol: nutritionInfo.minerals["cholesterol"],
+            potassium: nutritionInfo.minerals["potassium"],
+            calcium: nutritionInfo.minerals["calcium"],
+            iron: nutritionInfo.minerals["iron"],
+            vitaminA: nutritionInfo.vitamins["A"],
+            vitaminC: nutritionInfo.vitamins["C"],
+            servingSize: nil, // These are not part of NutritionInfo
+            servingUnit: nil  // These are not part of NutritionInfo
+        )
+    }
+    
+    // Update the method signature to use AdjustableObservation
+    private func applyFeedbackCorrections(to observations: inout [AdjustableObservation]) {
         let feedbackData = feedbackManager.feedbackData
         
-        // Create a dictionary of corrections based on user feedback
-        var corrections: [String: (String, Float)] = [:]
+        // Create dictionaries for corrections and misclassifications
+        var corrections: [String: [(String, Float)]] = [:]
+        var commonMisclassifications: [String: Set<String>] = [:]
         
+        // Process feedback data
+        processFeedbackData(feedbackData, corrections: &corrections, misclassifications: &commonMisclassifications)
+        
+        // Process each observation
+        var processedObservations: [AdjustableObservation] = []
+        
+        for observation in observations {
+            if let adjustedObservation = processObservation(
+                observation,
+                corrections: corrections,
+                misclassifications: commonMisclassifications
+            ) {
+                processedObservations.append(adjustedObservation)
+            }
+        }
+        
+        // Update the original observations array
+        observations = processedObservations
+    }
+    
+    private func processFeedbackData(
+        _ feedbackData: [FeedbackEntry],
+        corrections: inout [String: [(String, Float)]],
+        misclassifications: inout [String: Set<String>]
+    ) {
         for entry in feedbackData {
-            if entry.feedback == .incorrect, let correctName = entry.correctFoodName {
-                // Store the correction with the confidence level
-                corrections[entry.foodName.lowercased()] = (correctName, entry.confidence)
+            guard entry.feedback == .incorrect,
+                  let correctName = entry.correctFoodName else {
+                continue
+            }
+            
+            let cleanName = cleanUpFoodName(entry.foodName).lowercased()
+            
+            // Initialize arrays if needed
+            if corrections[cleanName] == nil {
+                corrections[cleanName] = []
+            }
+            if misclassifications[cleanName] == nil {
+                misclassifications[cleanName] = Set<String>()
+            }
+            
+            // Add corrections
+            corrections[cleanName]?.append((correctName, Float(entry.confidence)))
+            misclassifications[cleanName]?.insert(correctName.lowercased())
+        }
+    }
+    
+    private func processObservation(
+        _ observation: AdjustableObservation,
+        corrections: [String: [(String, Float)]],
+        misclassifications: [String: Set<String>]
+    ) -> AdjustableObservation? {
+        // Step 1: Clean up name
+        let cleanName = cleanUpFoodName(observation.identifier).lowercased()
+        
+        // Step 2: Check for corrections
+        if let correctedObservation = checkForCorrections(
+            observation: observation,
+            cleanName: cleanName,
+            corrections: corrections
+        ) {
+            return applyFiltersAndAdjustments(
+                correctedObservation,
+                misclassifications: misclassifications
+            )
+        }
+        
+        // Step 3: If no corrections, apply filters and adjustments to original
+        return applyFiltersAndAdjustments(
+            observation,
+            misclassifications: misclassifications
+        )
+    }
+    
+    private func checkForCorrections(
+        observation: AdjustableObservation,
+        cleanName: String,
+        corrections: [String: [(String, Float)]]
+    ) -> AdjustableObservation? {
+        guard let correctionsList = corrections[cleanName] else {
+            return nil
+        }
+        
+        // Count corrections
+        var counts: [String: Int] = [:]
+        for (correction, _) in correctionsList {
+            counts[correction, default: 0] += 1
+        }
+        
+        // Find most frequent correction
+        guard let mostFrequent = counts.max(by: { $0.value < $1.value })?.key else {
+            return nil
+        }
+        
+        return AdjustableObservation(
+            identifier: mostFrequent,
+            confidence: observation.confidence
+        )
+    }
+    
+    private func applyFiltersAndAdjustments(
+        _ observation: AdjustableObservation,
+        misclassifications: [String: Set<String>]
+    ) -> AdjustableObservation? {
+        let name = observation.identifier.lowercased()
+        
+        // Check confidence threshold
+        if observation.confidence < 0.8 {
+            if isGenericTerm(name) {
+                return nil
             }
         }
         
-        // Apply corrections to observations
-        for i in 0..<observations.count {
-            let cleanName = cleanUpFoodName(observations[i].identifier).lowercased()
-            
-            if let correction = corrections[cleanName] {
-                let correctName = correction.0
-                let confidence = correction.1
-                // Create a new observation with the corrected name
-                // VNClassificationObservation doesn't have a public initializer
-                // So we'll just modify the original observation's properties
-                print("Applying correction: \(cleanName) -> \(correctName) with confidence \(confidence)")
-                // Since we can't create a new VNClassificationObservation, we'll just continue with the original
+        // Check for problematic classifications
+        if isProblematicClassification(name: name, confidence: observation.confidence, misclassifications: misclassifications) {
+            return nil
+        }
+        
+        // Apply confidence adjustments
+        return adjustConfidence(observation)
+    }
+    
+    private func isGenericTerm(_ name: String) -> Bool {
+        let genericTerms = ["food", "edible", "ingredient", "meal", "dish"]
+        return genericTerms.contains(where: { name.contains($0) })
+    }
+    
+    private func isProblematicClassification(
+        name: String,
+        confidence: Float,
+        misclassifications: [String: Set<String>]
+    ) -> Bool {
+        if name.contains("oats") && confidence < 0.95 {
+            if let commonCorrections = misclassifications[name] {
+                return commonCorrections.contains("banana")
             }
         }
+        return false
+    }
+    
+    private func adjustConfidence(_ observation: AdjustableObservation) -> AdjustableObservation {
+        let name = observation.identifier.lowercased()
+        var result = observation
+        
+        if name.contains("banana") && observation.confidence > 0.6 {
+            result.confidence = min(1.0, observation.confidence * 1.2)
+        }
+        
+        return result
     }
     
     // Clean up food name for better readability
     private func cleanUpFoodName(_ name: String) -> String {
-        // Remove any text in parentheses
+        // Remove any text in parentheses and their contents
         var cleanName = name.replacingOccurrences(of: "\\([^)]+\\)", with: "", options: .regularExpression)
         
-        // Split by comma and take the first part
-        if let firstPart = cleanName.components(separatedBy: ",").first {
-            cleanName = firstPart.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
+        // Remove USDA program references
+        cleanName = cleanName.replacingOccurrences(of: "Includes foods? for USDA'?s? [^,]+", with: "", options: .regularExpression)
+        
+        // Split by comma and take the first meaningful part
+        let parts = cleanName.components(separatedBy: ",")
+        cleanName = parts.first { part in
+            let cleaned = part.trimmingCharacters(in: .whitespacesAndNewlines)
+            // Skip parts that are too short or contain certain keywords
+            return cleaned.count >= 3 && 
+                   !cleaned.lowercased().contains("usda") &&
+                   !cleaned.lowercased().contains("program") &&
+                   !cleaned.lowercased().contains("distribution")
+        } ?? parts[0]
+        
+        // Clean up extra whitespace
+        cleanName = cleanName.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Remove any remaining parentheses and their contents
+        cleanName = cleanName.replacingOccurrences(of: "\\([^)]+\\)", with: "", options: .regularExpression)
         
         // Capitalize first letter of each word
-        let words = cleanName.components(separatedBy: " ")
+        let words = cleanName.components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
         let capitalizedWords = words.map { word in
             if word.count > 0 {
                 let firstChar = word.prefix(1).uppercased()
-                let restOfWord = word.dropFirst()
+                let restOfWord = word.dropFirst().lowercased()
                 return firstChar + restOfWord
             }
             return word
@@ -1093,6 +1105,162 @@ class FoodClassifier: ObservableObject {
     // Get recommendation reason for a food
     private func getRecommendationReason(_ foodName: String) -> String? {
         return healthService.getRecommendationReason(foodName)
+    }
+    
+    // Add shape analysis function
+    private func analyzeShape(_ contours: [VNContour]) -> String {
+        // Get the bounding box of the largest contour
+        let largestContour = contours.max { contour1, contour2 in
+            let box1 = contour1.normalizedPath.boundingBox
+            let box2 = contour2.normalizedPath.boundingBox
+            let area1 = box1.width * box1.height
+            let area2 = box2.width * box2.height
+            return area1 < area2
+        }
+        
+        guard let contour = largestContour else {
+            return "unknown"
+        }
+        
+        let box = contour.normalizedPath.boundingBox
+        let aspectRatio = box.width / box.height
+        
+        if aspectRatio > 1.5 {
+            return "elongated"  // Likely a banana or similar elongated shape
+        } else if aspectRatio >= 0.8 && aspectRatio <= 1.2 {
+            return "round"      // Likely an apple or similar round shape
+        } else {
+            return "unknown"
+        }
+    }
+    
+    private func tryBackupRecognition(_ observations: [VNClassificationObservation]) {
+        // Create a backup array
+        var backupObjects: [RecognizedFood] = []
+        let processingQueue = DispatchQueue(label: "com.foodscannerpro.backupprocessing", attributes: .concurrent)
+        let processingGroup = DispatchGroup()
+        let syncQueue = DispatchQueue(label: "com.foodscannerpro.backupsync")
+        
+        // Process each observation
+        for observation in observations {
+            // Get components from the identifier
+            let components = observation.identifier.components(separatedBy: ",")
+            
+            // Process each component
+            for component in components {
+                let name = component.trimmingCharacters(in: .whitespacesAndNewlines)
+                
+                // Skip very short names
+                if name.count < 3 {
+                    continue
+                }
+                
+                // Enter the dispatch group
+                processingGroup.enter()
+                
+                // Process on background queue
+                processingQueue.async {
+                    self.processBackupComponent(
+                        name: name,
+                        confidence: observation.confidence
+                    ) { recognizedFood in
+                        syncQueue.async {
+                            backupObjects.append(recognizedFood)
+                            processingGroup.leave()
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Wait for all backup nutrition lookups to complete
+        processingGroup.notify(queue: .main) {
+            self.recognizedObjects = backupObjects.sorted(by: { $0.confidence > $1.confidence })
+            self.isProcessing = false
+        }
+    }
+
+    private func processBackupComponent(
+        name: String,
+        confidence: Float,
+        completion: @escaping (RecognizedFood) -> Void
+    ) {
+        self.nutritionService.getNutritionInfo(for: name) { result in
+            switch result {
+            case .success(let nutritionInfo):
+                let foodNutrition = FoodNutrition(
+                    calories: Double(nutritionInfo.calories),
+                    protein: nutritionInfo.protein,
+                    carbs: nutritionInfo.carbs,
+                    fats: nutritionInfo.fat
+                )
+                
+                let additionalNutrition = self.createAdditionalNutrition(from: nutritionInfo.toNutritionInfo())
+                let warnings = self.healthService.checkForWarnings(foodName: name)
+                let isRecommended = self.isRecommendedFood(name)
+                let recommendationReason = self.getRecommendationReason(name)
+                
+                let recognizedFood = RecognizedFood(
+                    name: name,
+                    confidence: confidence,
+                    boundingBox: .init(x: 0, y: 0, width: 1, height: 1),
+                    estimatedNutrition: foodNutrition,
+                    additionalNutrition: additionalNutrition,
+                    nutritionSource: nutritionInfo.source,
+                    dietaryWarnings: warnings.isEmpty ? nil : warnings,
+                    isRecommended: isRecommended,
+                    recommendationReason: recommendationReason
+                )
+                completion(recognizedFood)
+                
+            case .failure(let error):
+                print("Failed to get backup nutrition info for \(name): \(error.localizedDescription)")
+                let defaultFood = self.createDefaultRecognizedFood(
+                    name: name,
+                    confidence: confidence
+                )
+                completion(defaultFood)
+            }
+        }
+    }
+    
+    private func createDefaultRecognizedFood(name: String, confidence: Float) -> RecognizedFood {
+        let defaultNutrition = FoodNutrition(
+            calories: 100,
+            protein: 5,
+            carbs: 15,
+            fats: 3
+        )
+        
+        let additionalNutrition = AdditionalNutrition(
+            fiber: nil,
+            sugar: nil,
+            sodium: nil,
+            cholesterol: nil,
+            potassium: nil,
+            calcium: nil,
+            iron: nil,
+            vitaminA: nil,
+            vitaminC: nil,
+            servingSize: nil,
+            servingUnit: nil
+        )
+        
+        let warnings = self.healthService.checkForWarnings(foodName: name)
+        let isRecommended = self.isRecommendedFood(name)
+        let recommendationReason = self.getRecommendationReason(name)
+        
+        return RecognizedFood(
+            name: name,
+            confidence: confidence,
+            boundingBox: .init(x: 0, y: 0, width: 1, height: 1),
+            estimatedNutrition: defaultNutrition,
+            additionalNutrition: additionalNutrition,
+            nutritionSource: nil,
+            dietaryWarnings: warnings.isEmpty ? nil : warnings,
+            isRecommended: isRecommended,
+            recommendationReason: recommendationReason
+        )
     }
 }
 
@@ -1151,18 +1319,11 @@ struct RecognizedFood: Identifiable {
     }
 }
 
-/// Represents user feedback on food recognition
-enum FoodRecognitionFeedback: String, Codable {
-    case correct = "Correct"
-    case incorrect = "Incorrect"
-    case partiallyCorrect = "Partially Correct"
-}
-
 struct FoodNutrition {
     let calories: Double
     let protein: Double
     let carbs: Double
-    let fats: Double
+    let fats: Double  // Changed from fat to fats to match Core Data model
 }
 
 struct AdditionalNutrition {
@@ -1212,7 +1373,7 @@ struct FoodRecognitionView: View {
     @State private var showingEditSheet = false
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var feedbackManager = FeedbackManager()
+    @StateObject private var feedbackManager = FeedbackManager.shared
     @Binding var rootIsPresented: Bool
     @Binding var tabSelection: Int
     
@@ -1544,7 +1705,7 @@ struct FoodItemCard: View {
                 HStack(spacing: 30) {
                     NutritionRow(title: "Protein", value: Int(food.estimatedNutrition.protein), unit: "g")
                     NutritionRow(title: "Carbs", value: Int(food.estimatedNutrition.carbs), unit: "g")
-                    NutritionRow(title: "Fats", value: Int(food.estimatedNutrition.fats), unit: "g")
+                    NutritionRow(title: "Fat", value: Int(food.estimatedNutrition.fats), unit: "g")  // Changed from Fats to Fat
                 }
                 
                 // Show more details button
@@ -1824,7 +1985,7 @@ struct MealDetailView: View {
                         Spacer()
                         Text("P: \(Int(item.protein))g")
                         Text("C: \(Int(item.carbs))g")
-                        Text("F: \(Int(item.fats))g")
+                        Text("F: \(Int(item.fats))g")  // Changed from Fats to Fat
                     }
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -1965,65 +2126,6 @@ struct AnalyticsView_Previews: PreviewProvider {
     }
 }
 
-// Feedback Manager to collect and store user feedback
-class FeedbackManager: ObservableObject {
-    @Published var feedbackData: [FeedbackEntry] = []
-    private let userDefaults = UserDefaults.standard
-    private let feedbackKey = "foodRecognitionFeedback"
-    
-    struct FeedbackEntry: Codable, Identifiable {
-        let id: UUID
-        let foodName: String
-        let correctFoodName: String?
-        let feedback: FoodRecognitionFeedback
-        let confidence: Float
-        let timestamp: Date
-        
-        init(id: UUID = UUID(), foodName: String, correctFoodName: String? = nil, 
-             feedback: FoodRecognitionFeedback, confidence: Float, timestamp: Date = Date()) {
-            self.id = id
-            self.foodName = foodName
-            self.correctFoodName = correctFoodName
-            self.feedback = feedback
-            self.confidence = confidence
-            self.timestamp = timestamp
-        }
-    }
-    
-    init() {
-        loadFeedback()
-    }
-    
-    func addFeedback(for food: RecognizedFood, feedback: FoodRecognitionFeedback, correctName: String? = nil) {
-        let entry = FeedbackEntry(
-            foodName: food.name,
-            correctFoodName: correctName,
-            feedback: feedback,
-            confidence: food.confidence
-        )
-        
-        feedbackData.append(entry)
-        saveFeedback()
-    }
-    
-    func loadFeedback() {
-        if let data = userDefaults.data(forKey: feedbackKey),
-           let decoded = try? JSONDecoder().decode([FeedbackEntry].self, from: data) {
-            feedbackData = decoded
-        }
-    }
-    
-    func saveFeedback() {
-        if let encoded = try? JSONEncoder().encode(feedbackData) {
-            userDefaults.set(encoded, forKey: feedbackKey)
-        }
-    }
-    
-    func exportFeedback() -> Data? {
-        return try? JSONEncoder().encode(feedbackData)
-    }
-}
-
 struct FeedbackView: View {
     let food: RecognizedFood
     @Binding var localFood: RecognizedFood
@@ -2031,7 +2133,7 @@ struct FeedbackView: View {
     @State private var correctFoodName: String = ""
     @State private var showingThankYou = false
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject var feedbackManager: FeedbackManager
+    @StateObject private var feedbackManager = FeedbackManager.shared
     
     var body: some View {
         NavigationView {
@@ -2101,3 +2203,13 @@ struct FeedbackView: View {
         }
     }
 }
+
+// Add custom VNClassificationObservation extension
+extension VNClassificationObservation {
+    convenience init(identifier: String, confidence: Float) {
+        self.init()
+        self.setValue(identifier, forKey: "identifier")
+        self.setValue(confidence, forKey: "confidence")
+    }
+}
+

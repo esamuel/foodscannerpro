@@ -130,7 +130,7 @@ struct ProfileView: View {
                 EditProfileView(userProfile: userProfile, isPresented: $isEditingProfile)
             }
             .sheet(isPresented: $showingImagePicker) {
-                ImagePicker(selectedImage: $selectedImage, sourceType: .photoLibrary)
+                ModernImagePicker(selectedImage: $selectedImage, sourceType: .photoLibrary)
                     .onDisappear {
                         if let image = selectedImage {
                             userProfile.profileImage = image

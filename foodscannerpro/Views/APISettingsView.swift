@@ -1,9 +1,9 @@
 import SwiftUI
 import Components
 
-@MainActor
-struct APISettingsView: View {
-    @StateObject private var apiKeyManager = APIKeyManager.shared
+@available(iOS 13.0, *)
+public struct APISettingsView: View {
+    @StateObject private var apiKeyManager = ComponentsAPIKeyManager.shared
     @State private var chatGPTKey: String = ""
     @State private var clarifaiKey: String = ""
     @State private var logMealKey: String = ""
@@ -12,7 +12,7 @@ struct APISettingsView: View {
     @State private var alertMessage = ""
     @Environment(\.dismiss) private var dismiss
     
-    var body: some View {
+    public var body: some View {
         NavigationView {
             Form {
                 Section(header: Text("CHATGPT API KEY")) {
