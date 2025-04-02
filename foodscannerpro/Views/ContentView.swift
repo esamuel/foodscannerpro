@@ -20,7 +20,6 @@ struct ContentView: View {
     @State private var showingCamera = false
     @State private var showingFeatureTour = false
     @AppStorage("hasCompletedFeatureTour") private var hasCompletedFeatureTour = false
-    @State private var showVisionTest = false
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -61,12 +60,6 @@ struct ContentView: View {
                         Label("Profile", systemImage: "person.fill")
                     }
                     .tag(5)
-                
-                // Add this new tab for testing
-                VisionTestView()
-                    .tabItem {
-                        Label("Vision Test", systemImage: "camera.viewfinder")
-                    }
             }
             .accentColor(.green)
             .safeAreaInset(edge: .bottom) {
@@ -185,12 +178,10 @@ struct LegacyImagePicker: UIViewControllerRepresentable {
     @Binding var image: UIImage?
     @Environment(\.dismiss) private var dismiss
     @Binding var showRecognition: Bool
-    @Binding var showChatGPTScan: Bool
     
-    init(image: Binding<UIImage?>, showRecognition: Binding<Bool>, showChatGPTScan: Binding<Bool> = .constant(false)) {
+    init(image: Binding<UIImage?>, showRecognition: Binding<Bool>) {
         self._image = image
         self._showRecognition = showRecognition
-        self._showChatGPTScan = showChatGPTScan
     }
     
     func makeUIViewController(context: Context) -> UIImagePickerController {
@@ -226,19 +217,7 @@ struct LegacyImagePicker: UIViewControllerRepresentable {
                     
                     // Delay showing recognition to ensure picker is dismissed
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        // We need to check the showChatGPTScan flag ONCE and then take action
-                        let shouldShowChatGPTScan = self.parent.showChatGPTScan
-                        print("Should show ChatGPT scan: \(shouldShowChatGPTScan)")
-                        
-                        if shouldShowChatGPTScan {
-                            // If ChatGPT scan was requested, show that
-                            // We DO NOT set showChatGPTScan to true again, as it's already true
-                            // We just ensure recognition is false to avoid both screens showing
-                            self.parent.showRecognition = false
-                        } else {
-                            // Otherwise show regular recognition
-                            self.parent.showRecognition = true
-                        }
+                        self.parent.showRecognition = true
                     }
                 }
             } else {
@@ -248,7 +227,6 @@ struct LegacyImagePicker: UIViewControllerRepresentable {
         }
         
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            print("Image picker cancelled")
             parent.dismiss()
         }
     }
@@ -473,7 +451,7 @@ struct HomeView: View {
                 }
             }
             .sheet(isPresented: $showingLegacyPicker) {
-                LegacyImagePicker(image: $selectedImage, showRecognition: $showingRecognition, showChatGPTScan: $showingChatGPTScan)
+                LegacyImagePicker(image: $selectedImage, showRecognition: $showingRecognition)
             }
         }
         .fullScreenCover(isPresented: $showingRecognition) {

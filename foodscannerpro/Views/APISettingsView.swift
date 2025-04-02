@@ -4,7 +4,6 @@ import Components
 @available(iOS 13.0, *)
 public struct APISettingsView: View {
     @StateObject private var apiKeyManager = ComponentsAPIKeyManager.shared
-    @State private var chatGPTKey: String = ""
     @State private var clarifaiKey: String = ""
     @State private var logMealKey: String = ""
     @State private var usdaKey: String = ""
@@ -15,17 +14,6 @@ public struct APISettingsView: View {
     public var body: some View {
         NavigationView {
             Form {
-                Section(header: Text("CHATGPT API KEY")) {
-                    SecureField("Enter your API key", text: $chatGPTKey)
-                    if apiKeyManager.hasValidChatGPTKey() {
-                        Text("✓ Key is set")
-                            .foregroundColor(.green)
-                    } else {
-                        Text("Get your key from OpenAI")
-                            .foregroundColor(.blue)
-                    }
-                }
-                
                 Section(header: Text("CLARIFAI API KEY")) {
                     SecureField("Enter your API key", text: $clarifaiKey)
                     if apiKeyManager.hasValidClarifaiKey() {
@@ -62,13 +50,6 @@ public struct APISettingsView: View {
                 Button("Save API Keys") {
                     var success = false
                     var successMessage = "API Keys updated:"
-                    
-                    if !chatGPTKey.isEmpty {
-                        if apiKeyManager.updateChatGPTAPIKey(chatGPTKey) {
-                            successMessage += "\n✓ ChatGPT API key"
-                            success = true
-                        }
-                    }
                     
                     if !clarifaiKey.isEmpty {
                         if apiKeyManager.updateClarifaiAPIKey(clarifaiKey) {
@@ -119,10 +100,6 @@ public struct APISettingsView: View {
             }
             .onAppear {
                 // Load existing API keys if available
-                if apiKeyManager.hasValidChatGPTKey() {
-                    chatGPTKey = apiKeyManager.chatGPTAPIKey
-                }
-                
                 if apiKeyManager.hasValidClarifaiKey() {
                     clarifaiKey = apiKeyManager.clarifaiAPIKey
                 }
