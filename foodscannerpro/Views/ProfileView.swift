@@ -4,280 +4,316 @@ import UIKit
 import Components
 
 struct ProfileView: View {
-    @StateObject private var userProfile = UserProfile.shared
-    @State private var isEditingProfile = false
+    @State private var showingEditSheet = false
+    @State private var showingSettingsSheet = false
+    @State private var showingSuccessMessage = false
+    @State private var successMessage = ""
+    @State private var showingErrorMessage = false
+    @State private var errorMessage = ""
+    
+    // User Information
+    @State private var name: String = ""
+    @State private var age: Int = 0
+    @State private var weight: Double = 0.0
+    @State private var height: Double = 0.0
+    @State private var gender: String = "Not Specified"
+    @State private var activityLevel: String = "Moderate"
+    
+    // Preferences
+    @State private var dietaryPreferences: [String] = []
+    @State private var healthConditions: [String] = []
+    @State private var allergies: [String] = []
+    
+    // App Settings
+    @State private var notificationsEnabled: Bool = true
+    @State private var darkModeEnabled: Bool = false
+    @State private var useMetricSystem: Bool = true
+    @State private var languageSelection: String = "English"
+    
+    // UI State
+    @State private var showingSuccessAlert = false
     @State private var showingImagePicker = false
-    @State private var selectedImage: UIImage?
-    @State private var showingAPIKeySetup = false
     @State private var showingSettings = false
+    
+    // Constants
+    private let availableLanguages = ["English", "Spanish", "French", "German", "Chinese", "Japanese"]
+    private let availableActivityLevels = ["Sedentary", "Light", "Moderate", "Active", "Very Active"]
+    private let availableGenders = ["Not Specified", "Male", "Female", "Other"]
+    let dietaryPreferenceOptions = [
+        "Vegetarian",
+        "Vegan",
+        "Pescatarian",
+        "Gluten-Free",
+        "Dairy-Free",
+        "Keto",
+        "Paleo",
+        "Mediterranean",
+        "Low-Carb",
+        "Low-Fat"
+    ]
+    let healthConditionOptions = [
+        "None",
+        "Diabetes",
+        "Hypertension",
+        "Heart Disease",
+        "Celiac Disease",
+        "IBS",
+        "Food Allergies"
+    ]
+    let allergyOptions = [
+        "None",
+        "Peanuts",
+        "Tree Nuts",
+        "Milk",
+        "Eggs",
+        "Soy",
+        "Wheat",
+        "Fish",
+        "Shellfish"
+    ]
     
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Profile Image
-                    ZStack {
-                        if let profileImage = userProfile.profileImage {
-                            Image(uiImage: profileImage)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 120, height: 120)
-                                .clipShape(Circle())
-                        } else {
-                            Circle()
-                                .fill(Color.gray.opacity(0.2))
-                                .frame(width: 120, height: 120)
-                                .overlay(
-                                    Image(systemName: "person.fill")
-                                        .font(.system(size: 50))
-                                        .foregroundColor(.gray)
-                                )
-                        }
+            List {
+                // Profile Section
+                Section(header: Text("Profile")) {
+                    HStack {
+                        Image(systemName: "person.circle.fill")
+                            .resizable()
+                            .frame(width: 60, height: 60)
+                            .foregroundColor(.blue)
                         
-                        Button(action: {
-                            showingImagePicker = true
-                        }) {
-                            Circle()
-                                .fill(Color.blue)
-                                .frame(width: 30, height: 30)
-                                .overlay(
-                                    Image(systemName: "camera.fill")
-                                        .font(.system(size: 15))
-                                        .foregroundColor(.white)
-                                )
-                        }
-                        .offset(x: 40, y: 40)
-                    }
-                    .padding(.top, 20)
-                    
-                    // User Name
-                    Text(userProfile.name)
-                        .font(.title)
-                        .fontWeight(.bold)
-                    
-                    // User Email
-                    Text(userProfile.email)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    
-                    // User Stats
-                    VStack(spacing: 15) {
-                        HStack(spacing: 30) {
-                            StatView(title: "Age", value: "\(userProfile.age)")
-                            StatView(title: "Height", value: "\(Int(userProfile.height)) cm")
-                            StatView(title: "Weight", value: "\(Int(userProfile.weight)) kg")
-                        }
-                        
-                        // BMI
-                        HStack {
-                            Text("BMI:")
+                        VStack(alignment: .leading) {
+                            Text(name.isEmpty ? "Add Name" : name)
                                 .font(.headline)
-                            Text(String(format: "%.1f", userProfile.bmi))
-                                .font(.headline)
-                            Text("(\(userProfile.bmiCategory))")
-                                .font(.subheadline)
-                                .foregroundColor(bmiColor(for: userProfile.bmiCategory))
-                        }
-                    }
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(15)
-                    .padding(.horizontal)
-                    
-                    // Health Metrics
-                    VStack(alignment: .leading, spacing: 15) {
-                        Text("Health Metrics")
-                            .font(.headline)
-                            .padding(.horizontal)
-                        
-                        HStack(spacing: 20) {
-                            HealthMetricView(
-                                title: "Blood Pressure",
-                                value: userProfile.bloodPressure,
-                                icon: "heart.fill",
-                                color: .red
-                            )
-                            
-                            HealthMetricView(
-                                title: "Blood Sugar",
-                                value: String(format: "%.1f mmol/L", userProfile.bloodSugar),
-                                icon: "drop.fill",
-                                color: .blue
-                            )
-                        }
-                        .padding(.horizontal)
-                        
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text("Cholesterol")
+                            Text("Basic Plan")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
-                            
-                            HStack {
-                                Text("Total: \(String(format: "%.1f", userProfile.cholesterol.total)) mmol/L")
-                                Spacer()
-                                Text("HDL: \(String(format: "%.1f", userProfile.cholesterol.hdl)) mmol/L")
-                                Spacer()
-                                Text("LDL: \(String(format: "%.1f", userProfile.cholesterol.ldl)) mmol/L")
-                            }
-                            .font(.caption)
-                            
-                            HStack {
-                                Text("Status:")
-                                Text(userProfile.cholesterol.status.rawValue)
-                                    .foregroundColor(cholesterolStatusColor(userProfile.cholesterol.status))
-                            }
-                            .font(.caption)
                         }
-                        .padding()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(10)
-                        .padding(.horizontal)
+                        .padding(.leading)
                     }
-                    .padding(.vertical, 5)
+                    .padding(.vertical, 8)
+                }
+                
+                // Personal Information Section
+                Section(header: Text("Personal Information")) {
+                    HStack {
+                        Text("Name")
+                        Spacer()
+                        TextField("Enter name", text: $name)
+                            .multilineTextAlignment(.trailing)
+                    }
                     
-                    // Alert Preferences
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Alert Preferences")
-                            .font(.headline)
-                            .padding(.horizontal)
-                        
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach([
-                                ("Sugar", userProfile.alertPreferences.alertForSugar, "\(Int(userProfile.alertPreferences.sugarThreshold))g"),
-                                ("Sodium", userProfile.alertPreferences.alertForSodium, "\(Int(userProfile.alertPreferences.sodiumThreshold))mg"),
-                                ("Fat", userProfile.alertPreferences.alertForFat, "\(Int(userProfile.alertPreferences.fatThreshold))g"),
-                                ("Calories", userProfile.alertPreferences.alertForCalories, "\(Int(userProfile.alertPreferences.calorieThreshold)) kcal"),
-                                ("Allergens", userProfile.alertPreferences.alertForAllergens, "")
-                            ], id: \.0) { item in
-                                HStack {
-                                    Image(systemName: item.1 ? "bell.fill" : "bell.slash")
-                                        .foregroundColor(item.1 ? .green : .gray)
-                                    Text(item.0)
-                                    Spacer()
-                                    if !item.2.isEmpty {
-                                        Text("Threshold: \(item.2)")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
+                    HStack {
+                        Text("Age")
+                        Spacer()
+                        TextField("Enter age", value: $age, formatter: NumberFormatter())
+                            .multilineTextAlignment(.trailing)
+                            .keyboardType(.numberPad)
+                    }
+                    
+                    HStack {
+                        Text("Weight")
+                        Spacer()
+                        TextField("Enter weight", value: $weight, formatter: NumberFormatter())
+                            .multilineTextAlignment(.trailing)
+                            .keyboardType(.decimalPad)
+                    }
+                    
+                    HStack {
+                        Text("Height")
+                        Spacer()
+                        TextField("Enter height", value: $height, formatter: NumberFormatter())
+                            .multilineTextAlignment(.trailing)
+                            .keyboardType(.decimalPad)
+                    }
+                    
+                    Picker("Gender", selection: $gender) {
+                        ForEach(availableGenders, id: \.self) {
+                            Text($0)
+                        }
+                    }
+                    
+                    Picker("Activity Level", selection: $activityLevel) {
+                        ForEach(availableActivityLevels, id: \.self) {
+                            Text($0)
+                        }
+                    }
+                }
+                
+                // Dietary Preferences Section
+                Section(header: Text("Dietary Preferences")) {
+                    ForEach(dietaryPreferenceOptions, id: \.self) { preference in
+                        Toggle(preference, isOn: Binding(
+                            get: { dietaryPreferences.contains(preference) },
+                            set: { isOn in
+                                if isOn {
+                                    if !dietaryPreferences.contains(preference) {
+                                        dietaryPreferences.append(preference)
                                     }
+                                } else {
+                                    dietaryPreferences.removeAll { $0 == preference }
                                 }
                             }
-                        }
-                        .padding()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(10)
-                        .padding(.horizontal)
+                        ))
                     }
-                    .padding(.vertical, 5)
-                    
-                    // Dietary Preferences
-                    SectionView(title: "Dietary Preferences", items: userProfile.dietaryPreferences)
-                    
-                    // Allergies
-                    SectionView(title: "Allergies", items: userProfile.allergies)
-                    
-                    // Goals
-                    SectionView(title: "Goals", items: userProfile.goals)
-                    
-                    // Edit Profile Button
-                    Button(action: {
-                        isEditingProfile = true
-                    }) {
-                        Text("Edit Profile")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue)
-                            .cornerRadius(10)
-                    }
-                    .padding(.horizontal)
-                    
-                    // Settings Button
-                    Button(action: {
-                        showingSettings = true
-                    }) {
-                        HStack {
-                            Image(systemName: "gear")
-                                .font(.headline)
-                            Text("Settings")
-                                .font(.headline)
-                        }
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.purple)
-                        .cornerRadius(10)
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 10)
-                    
-                    // API Key Setup Button
-                    Button(action: {
-                        showingAPIKeySetup = true
-                    }) {
-                        HStack {
-                            Image(systemName: "key.fill")
-                                .font(.headline)
-                            Text("Setup API Keys")
-                                .font(.headline)
-                        }
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.green)
-                        .cornerRadius(10)
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 10)
                 }
-                .padding(.bottom, 30)
+                
+                // Health Conditions Section
+                Section(header: Text("Health Conditions")) {
+                    ForEach(healthConditionOptions, id: \.self) { condition in
+                        Toggle(condition, isOn: Binding(
+                            get: { healthConditions.contains(condition) },
+                            set: { isOn in
+                                if isOn {
+                                    if !healthConditions.contains(condition) {
+                                        healthConditions.append(condition)
+                                    }
+                                } else {
+                                    healthConditions.removeAll { $0 == condition }
+                                }
+                            }
+                        ))
+                    }
+                }
+                
+                // Allergies Section
+                Section(header: Text("Allergies")) {
+                    ForEach(allergyOptions, id: \.self) { allergy in
+                        Toggle(allergy, isOn: Binding(
+                            get: { allergies.contains(allergy) },
+                            set: { isOn in
+                                if isOn {
+                                    if !allergies.contains(allergy) {
+                                        allergies.append(allergy)
+                                    }
+                                } else {
+                                    allergies.removeAll { $0 == allergy }
+                                }
+                            }
+                        ))
+                    }
+                }
+                
+                // App Settings Section
+                Section(header: Text("App Settings")) {
+                    Toggle("Enable Notifications", isOn: $notificationsEnabled)
+                    Toggle("Dark Mode", isOn: $darkModeEnabled)
+                    Toggle("Use Metric System", isOn: $useMetricSystem)
+                    
+                    Picker("Language", selection: $languageSelection) {
+                        ForEach(availableLanguages, id: \.self) {
+                            Text($0)
+                        }
+                    }
+                }
+                
+                // Account Actions Section
+                Section {
+                    Button("Upgrade to Premium") {
+                        // Handle premium upgrade
+                    }
+                    .foregroundColor(.blue)
+                    
+                    Button("Export Data") {
+                        // Handle data export
+                    }
+                    .foregroundColor(.blue)
+                    
+                    Button("Delete Account") {
+                        // Handle account deletion
+                    }
+                    .foregroundColor(.red)
+                }
             }
             .navigationTitle("Profile")
-            .sheet(isPresented: $isEditingProfile) {
-                EditProfileView(userProfile: userProfile, isPresented: $isEditingProfile)
-            }
-            .sheet(isPresented: $showingImagePicker) {
-                GalleryImagePicker(image: $selectedImage)
-                    .onDisappear {
-                        if let image = selectedImage {
-                            userProfile.profileImage = image
-                            userProfile.save()
-                        }
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Save") {
+                        saveProfile()
                     }
+                }
             }
-            .sheet(isPresented: $showingAPIKeySetup) {
-                APIKeySetupView(isPresented: $showingAPIKeySetup)
+            .alert("Success", isPresented: $showingSuccessMessage) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(successMessage)
             }
-            .sheet(isPresented: $showingSettings) {
-                SettingsView(isPresented: $showingSettings)
+            .alert("Error", isPresented: $showingErrorMessage) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(errorMessage)
+            }
+            .onAppear {
+                // Load user preferences
+                loadUserPreferences()
             }
         }
     }
     
-    private func bmiColor(for category: String) -> Color {
-        switch category {
-        case "Underweight":
-            return .orange
-        case "Normal":
-            return .green
-        case "Overweight":
-            return .yellow
-        case "Obese":
-            return .red
-        default:
-            return .gray
-        }
+    private func loadUserPreferences() {
+        // Load user preferences from UserDefaults or other storage
+        let defaults = UserDefaults.standard
+        name = defaults.string(forKey: "userName") ?? ""
+        age = defaults.integer(forKey: "userAge")
+        weight = defaults.double(forKey: "userWeight")
+        height = defaults.double(forKey: "userHeight")
+        gender = defaults.string(forKey: "userGender") ?? "Not Specified"
+        activityLevel = defaults.string(forKey: "userActivityLevel") ?? "Moderate"
+        dietaryPreferences = defaults.stringArray(forKey: "userDietaryPreferences") ?? []
+        healthConditions = defaults.stringArray(forKey: "userHealthConditions") ?? []
+        allergies = defaults.stringArray(forKey: "userAllergies") ?? []
+        notificationsEnabled = defaults.bool(forKey: "notificationsEnabled")
+        darkModeEnabled = defaults.bool(forKey: "darkModeEnabled")
+        useMetricSystem = defaults.bool(forKey: "useMetricSystem")
+        languageSelection = defaults.string(forKey: "languageSelection") ?? "English"
     }
     
-    private func cholesterolStatusColor(_ status: Cholesterol.CholesterolStatus) -> Color {
-        switch status {
-        case .optimal:
-            return .green
-        case .borderline:
-            return .yellow
-        case .high:
-            return .red
-        }
+    private func saveProfile() {
+        // Save user preferences to UserDefaults or other storage
+        let defaults = UserDefaults.standard
+        defaults.set(name, forKey: "userName")
+        defaults.set(age, forKey: "userAge")
+        defaults.set(weight, forKey: "userWeight")
+        defaults.set(height, forKey: "userHeight")
+        defaults.set(gender, forKey: "userGender")
+        defaults.set(activityLevel, forKey: "userActivityLevel")
+        defaults.set(dietaryPreferences, forKey: "userDietaryPreferences")
+        defaults.set(healthConditions, forKey: "userHealthConditions")
+        defaults.set(allergies, forKey: "userAllergies")
+        defaults.set(notificationsEnabled, forKey: "notificationsEnabled")
+        defaults.set(darkModeEnabled, forKey: "darkModeEnabled")
+        defaults.set(useMetricSystem, forKey: "useMetricSystem")
+        defaults.set(languageSelection, forKey: "languageSelection")
+        
+        // Show success message
+        successMessage = "Profile saved successfully!"
+        showingSuccessMessage = true
+    }
+    
+    private func saveAPIKeys() {
+        // Save user preferences
+        saveUserPreferences()
+        successMessage = "Settings updated successfully"
+        showingSuccessAlert = true
+    }
+    
+    private func saveUserPreferences() {
+        // Save user preferences to UserDefaults or other storage
+        let defaults = UserDefaults.standard
+        defaults.set(name, forKey: "userName")
+        defaults.set(age, forKey: "userAge")
+        defaults.set(weight, forKey: "userWeight")
+        defaults.set(height, forKey: "userHeight")
+        defaults.set(gender, forKey: "userGender")
+        defaults.set(activityLevel, forKey: "userActivityLevel")
+        defaults.set(dietaryPreferences, forKey: "userDietaryPreferences")
+        defaults.set(healthConditions, forKey: "userHealthConditions")
+        defaults.set(allergies, forKey: "userAllergies")
+        defaults.set(notificationsEnabled, forKey: "notificationsEnabled")
+        defaults.set(darkModeEnabled, forKey: "darkModeEnabled")
+        defaults.set(useMetricSystem, forKey: "useMetricSystem")
+        defaults.set(languageSelection, forKey: "languageSelection")
     }
 }
 
@@ -672,139 +708,20 @@ struct EditProfileView: View {
     }
 }
 
-// API Key Setup View
 struct APIKeySetupView: View {
     @Binding var isPresented: Bool
-    @State private var clarifaiAPIKey = ""
-    @State private var logMealAPIKey = ""
-    @State private var usdaAPIKey = ""
-    @State private var showingSuccessAlert = false
-    @State private var successMessage = ""
-    @State private var chatGPTAPIKey = ""
-    @State private var logmealAPIKey = ""
     
     var body: some View {
         NavigationView {
-            Form {
-                Section(header: Text("ChatGPT API Key"),
-                        footer: Text("Get your key from OpenAI")) {
-                    TextField("Enter ChatGPT API key", text: $chatGPTAPIKey)
-                        .autocapitalization(.none)
-                        .disableAutocorrection(true)
-                }
-                
-                Section(header: Text("Clarifai API Key"),
-                        footer: Text("Get your key from")) {
-                    TextField("Enter Clarifai API key", text: $clarifaiAPIKey)
-                        .autocapitalization(.none)
-                        .disableAutocorrection(true)
-                    
-                    Link("Get your key from", destination: URL(string: "https://www.clarifai.com/")!)
-                        .font(.caption)
-                        .foregroundColor(.blue)
-                }
-                
-                Section(header: Text("LogMeal API Key"),
-                        footer: Text("Get your key from")) {
-                    TextField("Enter LogMeal API key", text: $logMealAPIKey)
-                        .autocapitalization(.none)
-                        .disableAutocorrection(true)
-                    
-                    Link("Get your key from", destination: URL(string: "https://logmeal.es/api")!)
-                        .font(.caption)
-                        .foregroundColor(.blue)
-                }
-                
-                Section(header: Text("USDA Food Data Central API Key"),
-                        footer: Text("Get your key from")) {
-                    TextField("Enter USDA API key", text: $usdaAPIKey)
-                        .autocapitalization(.none)
-                        .disableAutocorrection(true)
-                    
-                    Link("Get your key from", destination: URL(string: "https://fdc.nal.usda.gov/api-key-signup.html")!)
-                        .font(.caption)
-                        .foregroundColor(.blue)
-                }
-                
-                Section {
-                    Button("Save API Keys") {
-                        saveAPIKeys()
-                    }
-                    .frame(maxWidth: .infinity, alignment: .center)
-                }
+            VStack {
+                Text("API Key management has been removed")
+                    .padding()
             }
-            .navigationTitle("API Key Setup")
+            .navigationTitle("API Setup")
             .navigationBarItems(trailing: Button("Done") {
                 isPresented = false
             })
-            .alert(isPresented: $showingSuccessAlert) {
-                Alert(
-                    title: Text("API Keys Updated"),
-                    message: Text(successMessage),
-                    dismissButton: .default(Text("OK"))
-                )
-            }
-            .onAppear {
-                // Load saved API keys
-                let apiKeyManager = APIKeyManager.shared
-                
-                // Only load keys that aren't default values
-                if apiKeyManager.chatGPTAPIKey != "YOUR_CHATGPT_API_KEY" {
-                    chatGPTAPIKey = apiKeyManager.chatGPTAPIKey
-                }
-
-                if apiKeyManager.clarifaiAPIKey != "YOUR_CLARIFAI_API_KEY" {
-                    clarifaiAPIKey = apiKeyManager.clarifaiAPIKey
-                }
-                
-                if apiKeyManager.logMealAPIKey != "YOUR_LOGMEAL_API_KEY" {
-                    logMealAPIKey = apiKeyManager.logMealAPIKey
-                }
-                
-                if apiKeyManager.usdaAPIKey != "DEMO_KEY" {
-                    usdaAPIKey = apiKeyManager.usdaAPIKey
-                }
-            }
         }
-    }
-    
-    private func saveAPIKeys() {
-        var success = false
-        successMessage = "API Keys updated:"
-        
-        if !chatGPTAPIKey.isEmpty {
-            if APIKeyManager.shared.updateChatGPTAPIKey(chatGPTAPIKey) {
-                successMessage += "\n✓ ChatGPT API key"
-                success = true
-            }
-        }
-
-        if !clarifaiAPIKey.isEmpty {
-            if APIKeyManager.shared.updateClarifaiAPIKey(clarifaiAPIKey) {
-                successMessage += "\n✓ Clarifai API key"
-                success = true
-            }
-        }
-        
-        if !logMealAPIKey.isEmpty {
-            if APIKeyManager.shared.updateLogMealAPIKey(logMealAPIKey) {
-                successMessage += "\n✓ LogMeal API key"
-                success = true
-            }
-        }
-        
-        if !usdaAPIKey.isEmpty {
-            if APIKeyManager.shared.updateUSDAAPIKey(usdaAPIKey) {
-                successMessage += "\n✓ USDA API key"
-                success = true
-            }
-        }
-        
-        if !success {
-            successMessage = "No API keys were updated."
-        }
-        
-        showingSuccessAlert = true
     }
 }
 

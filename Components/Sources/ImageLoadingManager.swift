@@ -59,7 +59,13 @@ public actor ImageLoadingManager {
         await withTaskGroup(of: Void.self) { group in
             for url in urls {
                 group.addTask {
-                    try? await self.loadImage(from: url)
+                    do {
+                        _ = try await self.loadImage(from: url)
+                    } catch {
+                        // Silently fail for preloading
+                        // You might want to log the error in a production environment
+                        print("Failed to preload image from \(url): \(error)")
+                    }
                 }
             }
         }

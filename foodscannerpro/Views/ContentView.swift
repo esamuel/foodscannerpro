@@ -185,12 +185,10 @@ struct LegacyImagePicker: UIViewControllerRepresentable {
     @Binding var image: UIImage?
     @Environment(\.dismiss) private var dismiss
     @Binding var showRecognition: Bool
-    @Binding var showChatGPTScan: Bool
     
-    init(image: Binding<UIImage?>, showRecognition: Binding<Bool>, showChatGPTScan: Binding<Bool> = .constant(false)) {
+    init(image: Binding<UIImage?>, showRecognition: Binding<Bool>) {
         self._image = image
         self._showRecognition = showRecognition
-        self._showChatGPTScan = showChatGPTScan
     }
     
     func makeUIViewController(context: Context) -> UIImagePickerController {
@@ -226,19 +224,7 @@ struct LegacyImagePicker: UIViewControllerRepresentable {
                     
                     // Delay showing recognition to ensure picker is dismissed
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        // We need to check the showChatGPTScan flag ONCE and then take action
-                        let shouldShowChatGPTScan = self.parent.showChatGPTScan
-                        print("Should show ChatGPT scan: \(shouldShowChatGPTScan)")
-                        
-                        if shouldShowChatGPTScan {
-                            // If ChatGPT scan was requested, show that
-                            // We DO NOT set showChatGPTScan to true again, as it's already true
-                            // We just ensure recognition is false to avoid both screens showing
-                            self.parent.showRecognition = false
-                        } else {
-                            // Otherwise show regular recognition
-                            self.parent.showRecognition = true
-                        }
+                        self.parent.showRecognition = true
                     }
                 }
             } else {
@@ -257,14 +243,12 @@ struct LegacyImagePicker: UIViewControllerRepresentable {
 struct HomeView: View {
     @State private var searchText = ""
     @State private var showingImagePicker = false
-    @State private var showingLegacyPicker = false
+    @State private var showingLegacyPicker = true
     @State private var searchResults: [String] = []
     @State private var isSearching = false
     @State private var selectedImage: UIImage?
     @State private var showingPreview = false
     @State private var showingRecognition = false
-    @State private var showingChatGPTScan = false
-    @StateObject private var chatGPTScanService = ChatGPTScanService()
     @Binding var tabSelection: Int
     @Binding var showingCamera: Bool
     
@@ -364,7 +348,6 @@ struct HomeView: View {
                             Button {
                                 print("From Gallery button tapped")
                                 selectedImage = nil // Reset the image
-                                showingChatGPTScan = false // Ensure ChatGPT scan is not shown
                                 showingRecognition = false // Reset the recognition flag
                                 showingLegacyPicker = true
                             } label: {
@@ -388,35 +371,6 @@ struct HomeView: View {
                                 .background(Color(.systemGray6))
                                 .cornerRadius(15)
                             }
-                            
-                            // ChatGPT Scan option
-                            Button {
-                                print("ChatGPT Scan button tapped")
-                                selectedImage = nil // Reset the image
-                                showingChatGPTScan = true // Set the flag for ChatGPT scan
-                                showingRecognition = false // Ensure regular recognition is not shown
-                                showingLegacyPicker = true // Show the picker
-                            } label: {
-                                VStack(spacing: 12) {
-                                    ZStack {
-                                        Circle()
-                                            .fill(Color.purple.opacity(0.2))
-                                            .frame(width: 60, height: 60)
-                                        
-                                        Image(systemName: "brain")
-                                            .font(.system(size: 24))
-                                            .foregroundColor(.purple)
-                                    }
-                                    
-                                    Text("ChatGPT Scan")
-                                        .font(.headline)
-                                        .foregroundColor(.primary)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color(.systemGray6))
-                                .cornerRadius(15)
-                            }
                         }
                         .padding(.horizontal)
                     }
@@ -430,17 +384,17 @@ struct HomeView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal)
                         
-                    LazyVGrid(columns: [
-                        GridItem(.flexible()),
-                        GridItem(.flexible()),
-                        GridItem(.flexible())
-                    ], spacing: 20) {
+                        LazyVGrid(columns: [
+                            GridItem(.flexible()),
+                            GridItem(.flexible()),
+                            GridItem(.flexible())
+                        ], spacing: 20) {
                             FeatureButton(icon: "chart.bar.fill", title: "Analytics", color: .blue)
-                            .onTapGesture {
+                                .onTapGesture {
                                     tabSelection = 3
-                            }
+                                }
                             FeatureButton(icon: "clock.fill", title: "History", color: .purple)
-                            .onTapGesture {
+                                .onTapGesture {
                                     tabSelection = 4
                                 }
                             FeatureButton(icon: "heart.fill", title: "Recommendations", color: .red)
@@ -451,9 +405,9 @@ struct HomeView: View {
                                 .onTapGesture {
                                     tabSelection = 5
                                 }
-                        FeatureButton(icon: "star.fill", title: "Premium", color: .yellow)
+                            FeatureButton(icon: "star.fill", title: "Premium", color: .yellow)
                             FeatureButton(icon: "fork.knife", title: "Meal Plans", color: .green)
-                    }
+                        }
                         .padding(.horizontal)
                     }
                     
@@ -473,7 +427,7 @@ struct HomeView: View {
                 }
             }
             .sheet(isPresented: $showingLegacyPicker) {
-                LegacyImagePicker(image: $selectedImage, showRecognition: $showingRecognition, showChatGPTScan: $showingChatGPTScan)
+                LegacyImagePicker(image: $selectedImage, showRecognition: $showingRecognition)
             }
         }
         .fullScreenCover(isPresented: $showingRecognition) {
@@ -481,14 +435,6 @@ struct HomeView: View {
                 image: selectedImage ?? UIImage(),
                 classifier: FoodClassifier(),
                 rootIsPresented: $showingRecognition,
-                tabSelection: $tabSelection
-            )
-        }
-        .fullScreenCover(isPresented: $showingChatGPTScan) {
-            ChatGPTScanWrapper(
-                selectedImage: selectedImage,
-                chatGPTScanService: chatGPTScanService,
-                rootIsPresented: $showingChatGPTScan,
                 tabSelection: $tabSelection
             )
         }
@@ -500,8 +446,6 @@ struct HomeView: View {
                 showingPreview = true
             } else if newValue != nil && showingLegacyPicker {
                 print("Image selected from legacy picker, picker should auto-dismiss")
-                // The picker will handle showing either recognition or ChatGPT scan
-                // based on the flags we've set
             }
         }
         .onChange(of: showingRecognition) { oldValue, newValue in
@@ -537,47 +481,6 @@ struct FeatureButton: View {
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
-    }
-}
-
-struct ChatGPTScanWrapper: View {
-    let selectedImage: UIImage?
-    let chatGPTScanService: ChatGPTScanService
-    @Binding var rootIsPresented: Bool
-    @Binding var tabSelection: Int
-    
-    var body: some View {
-        if selectedImage == nil {
-            // Error view when no image is available
-            return AnyView(
-                VStack {
-                    Text("Error: No image selected")
-                        .font(.headline)
-                    Button("Go Back") {
-                        rootIsPresented = false
-                    }
-                    .padding()
-                    .background(Color.blue)
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
-                    .padding(.top, 20)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(.systemBackground))
-            )
-        } else {
-            // Unwrap the image safely
-            let unwrappedImage = selectedImage!
-            print("Showing ChatGPTScanView with image: \(unwrappedImage.size.width)x\(unwrappedImage.size.height)")
-            return AnyView(
-                ChatGPTScanView(
-                    image: unwrappedImage,
-                    scanService: chatGPTScanService,
-                    rootIsPresented: $rootIsPresented,
-                    tabSelection: $tabSelection
-                )
-            )
-        }
     }
 }
 

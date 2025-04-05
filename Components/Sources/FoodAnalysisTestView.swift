@@ -1,4 +1,6 @@
 import SwiftUI
+import Vision
+import CoreML
 
 public struct FoodAnalysisTestView: View {
     @StateObject private var viewModel = FoodAnalysisViewModel(modelNames: ["FoodClassifier"])
@@ -47,13 +49,12 @@ public struct FoodAnalysisTestView: View {
             .sheet(isPresented: $showingImagePicker) {
                 ModernImagePicker(selectedImage: $selectedImage, sourceType: .photoLibrary)
             }
-            .onChange(of: selectedImage) { newImage in
+            .onChange(of: selectedImage) { oldImage, newImage in
                 if let image = newImage {
                     analyzeImage(image)
                 }
             }
             .task {
-                // Initialize the model when view appears
                 await viewModel.initialize()
             }
         }

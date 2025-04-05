@@ -1,5 +1,7 @@
 import SwiftUI
 import Combine
+import Vision
+import CoreML
 
 @MainActor
 public class FoodAnalysisViewModel: ObservableObject {
@@ -12,6 +14,7 @@ public class FoodAnalysisViewModel: ObservableObject {
     
     /// Model names to be used for analysis
     private let modelNames: [String]
+    private var models: [VNCoreMLModel] = []
     
     /// Initialization status
     private var isInitialized = false
@@ -29,8 +32,13 @@ public class FoodAnalysisViewModel: ObservableObject {
         guard !isInitialized else { return }
         
         do {
-            // Preload all models in parallel
-            await CoreMLManager.shared.preloadModels(modelNames)
+            for modelName in modelNames {
+                guard let modelURL = Bundle.main.url(forResource: modelName, withExtension: "mlmodelc") else {
+                    throw FoodAnalysisError.modelNotFound(modelName)
+                }
+                let model = try VNCoreMLModel(for: MLModel(contentsOf: modelURL))
+                models.append(model)
+            }
             isInitialized = true
         } catch {
             self.error = error
@@ -40,10 +48,14 @@ public class FoodAnalysisViewModel: ObservableObject {
     /// Analyzes a food image
     /// - Parameters:
     ///   - image: The image to analyze
-    ///   - modelName: Optional specific model to use (uses first available if not specified)
-    public func analyzeFood(image: UIImage, modelName: String? = nil) async {
+    public func analyzeFood(image: UIImage) async {
         guard isInitialized else {
-            error = CoreMLError.modelNotLoaded
+            error = FoodAnalysisError.modelsNotInitialized
+            return
+        }
+        
+        guard !models.isEmpty else {
+            error = FoodAnalysisError.modelsNotInitialized
             return
         }
         
@@ -51,15 +63,33 @@ public class FoodAnalysisViewModel: ObservableObject {
         error = nil
         
         do {
-            let targetModel = modelName ?? modelNames.first
-            guard let model = targetModel else {
-                throw CoreMLError.modelNotFound
+            guard let cgImage = image.cgImage else {
+                throw FoodAnalysisError.invalidImage
             }
             
-            analysisResults = try await CoreMLManager.shared.classifyFood(
-                image: image,
-                modelName: model
-            )
+            let requestHandler = VNImageRequestHandler(cgImage: cgImage)
+            var results: [VNClassificationObservation] = []
+            
+            for model in models {
+                let request = VNCoreMLRequest(model: model) { request, error in
+                    if let error = error {
+                        self.error = FoodAnalysisError.classificationFailed(error)
+                        return
+                    }
+                    if let classifications = request.results as? [VNClassificationObservation] {
+                        results.append(contentsOf: classifications)
+                    }
+                }
+                try requestHandler.perform([request])
+            }
+            
+            // Process results
+            self.analysisResults = results.map { observation in
+                FoodClassificationResult(
+                    label: observation.identifier,
+                    confidence: observation.confidence
+                )
+            }
         } catch {
             self.error = error
             analysisResults = []
@@ -72,32 +102,5 @@ public class FoodAnalysisViewModel: ObservableObject {
     public func clearResults() {
         analysisResults = []
         error = nil
-    }
-    
-    // MARK: - Cleanup
-    
-    deinit {
-        // Unload models when view model is deallocated
-        // Note: We can't use async/await directly in deinit,
-        // so we detach the task to handle cleanup
-        Task.detached { [modelNames] in
-            for modelName in modelNames {
-                await CoreMLManager.shared.unloadModel(modelName)
-            }
-        }
-    }
-}
-
-// MARK: - Helper Extensions
-
-extension FoodClassificationResult {
-    /// Returns true if the confidence is above a reasonable threshold
-    public var isReliable: Bool {
-        confidence > 0.7 // 70% confidence threshold
-    }
-    
-    /// Formatted confidence percentage
-    public var confidencePercentage: String {
-        String(format: "%.1f%%", confidence * 100)
     }
 } 
