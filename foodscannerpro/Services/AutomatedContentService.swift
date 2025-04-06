@@ -1,14 +1,28 @@
 import Foundation
 import UIKit
 import CoreML
+import SwiftUI
 
 class AutomatedContentService: ObservableObject {
     static let shared = AutomatedContentService()
     
     // MARK: - Properties
-    private let edamamAPIKey = "YOUR_EDAMAM_API_KEY" // You'll need to get this
-    private let spoonacularAPIKey = "YOUR_SPOONACULAR_API_KEY" // You'll need to get this
-    private let unsplashAPIKey = "YOUR_UNSPLASH_API_KEY" // For food images
+    // Use APIConfig to get the keys instead of hardcoding them
+    private var edamamAPIKey: String {
+        return APIConfig.edamamAPIKey
+    }
+    
+    private var edamamAppID: String {
+        return APIConfig.edamamAppID
+    }
+    
+    private var spoonacularAPIKey: String {
+        return APIConfig.spoonacularAPIKey
+    }
+    
+    private var unsplashAPIKey: String {
+        return APIConfig.unsplashAPIKey
+    }
     
     // MARK: - Food Data Fetching
     
@@ -88,12 +102,12 @@ class AutomatedContentService: ObservableObject {
     // MARK: - API Calls
     
     private func fetchEdamamRecipes(with params: [String: String]) async throws -> [FoodRecommendation] {
-        let baseURL = "https://api.edamam.com/api/recipes/v2"
+        let baseURL = APIConfig.edamamBaseURL
         var urlComponents = URLComponents(string: baseURL)!
         
         // Add API credentials
         var queryItems = [
-            URLQueryItem(name: "app_id", value: "YOUR_APP_ID"),
+            URLQueryItem(name: "app_id", value: edamamAppID),
             URLQueryItem(name: "app_key", value: edamamAPIKey)
         ]
         
@@ -111,7 +125,7 @@ class AutomatedContentService: ObservableObject {
     }
     
     private func fetchSpoonacularRecipes(with params: [String: String]) async throws -> [FoodRecommendation] {
-        let baseURL = "https://api.spoonacular.com/recipes/complexSearch"
+        let baseURL = "\(APIConfig.spoonacularBaseURL)/recipes/complexSearch"
         var urlComponents = URLComponents(string: baseURL)!
         
         // Add API key
@@ -177,9 +191,9 @@ class AutomatedContentService: ObservableObject {
         return recommendations
     }
     
-    // New method to get image URL instead of downloading the image
     private func getImageURL(for foodName: String) async throws -> String? {
-        let baseURL = "https://api.unsplash.com/search/photos"
+        // Use the predefined URL construction helper in APIConfig but add per_page parameter
+        let baseURL = APIConfig.unsplashBaseURL + "/search/photos"
         var urlComponents = URLComponents(string: baseURL)!
         
         let queryItems = [
