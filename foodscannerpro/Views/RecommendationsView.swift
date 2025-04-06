@@ -3,11 +3,13 @@ import CoreData
 
 struct RecommendationsView: View {
     @StateObject private var contentManager = ContentManager.shared
+    @StateObject private var automatedService = AutomatedContentService.shared
     @State private var selectedCategory = RecommendationCategory.all
     @State private var recommendations: [FoodRecommendation] = []
     @State private var selectedRecommendation: FoodRecommendation?
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var showingDiagnostics = false
     
     private let columns = [
         GridItem(.flexible()),
@@ -24,6 +26,21 @@ struct RecommendationsView: View {
     var body: some View {
         NavigationView {
             VStack {
+                // Network Status Indicator
+                if !automatedService.isConnected {
+                    HStack {
+                        Image(systemName: "wifi.slash")
+                            .foregroundColor(.red)
+                        Text("No Internet Connection")
+                            .font(.callout)
+                            .foregroundColor(.red)
+                        Spacer()
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                    .background(Color.red.opacity(0.1))
+                }
+                
                 // Category Picker
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
@@ -42,8 +59,13 @@ struct RecommendationsView: View {
                 if contentManager.isLoading {
                     ProgressView("Loading recommendations...")
                         .progressViewStyle(.circular)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if recommendations.isEmpty {
-                    EmptyStateView()
+                    EmptyStateView(
+                        networkConnected: automatedService.isConnected,
+                        errorMessage: automatedService.lastNetworkError ?? "",
+                        onRetry: loadRecommendations
+                    )
                 } else {
                     ScrollView {
                         LazyVGrid(columns: columns, spacing: 16) {
@@ -64,11 +86,25 @@ struct RecommendationsView: View {
                         Image(systemName: "arrow.clockwise")
                     }
                 }
+                
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: { showingDiagnostics = true }) {
+                        Image(systemName: "info.circle")
+                    }
+                }
             }
             .alert("Error", isPresented: $showError) {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(errorMessage)
+            }
+            .sheet(isPresented: $showingDiagnostics) {
+                DiagnosticsView(
+                    networkConnected: automatedService.isConnected,
+                    lastAPIURL: automatedService.lastRequestURL ?? "None",
+                    lastAPIError: automatedService.lastNetworkError ?? "None",
+                    onClose: { showingDiagnostics = false }
+                )
             }
             .task {
                 await loadRecommendations()
@@ -79,12 +115,220 @@ struct RecommendationsView: View {
     private func loadRecommendations() {
         Task {
             do {
+                // Reset error state
+                automatedService.lastNetworkError = nil
+                
+                // Attempt to get recommendations
                 recommendations = try await contentManager.getPersonalizedRecommendations()
+                
+                if recommendations.isEmpty && automatedService.lastNetworkError != nil {
+                    errorMessage = "Failed to load recommendations: \(automatedService.lastNetworkError ?? "Unknown error")"
+                    showError = true
+                }
             } catch {
-                errorMessage = error.localizedDescription
+                recommendations = []
+                errorMessage = "Error: \(error.localizedDescription)"
                 showError = true
             }
         }
+    }
+}
+
+struct DiagnosticsView: View {
+    let networkConnected: Bool
+    let lastAPIURL: String
+    let lastAPIError: String
+    let onClose: () -> Void
+    @State private var apiKeysStatus = [String: Bool]()
+    @State private var apiConnectivity = [String: Bool]()
+    @State private var isTestingAPI = false
+    @StateObject private var contentManager = ContentManager.shared
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("Network Status")) {
+                    HStack {
+                        Text("Internet Connection")
+                        Spacer()
+                        if networkConnected {
+                            Label("Connected", systemImage: "wifi")
+                                .foregroundColor(.green)
+                        } else {
+                            Label("Disconnected", systemImage: "wifi.slash")
+                                .foregroundColor(.red)
+                        }
+                    }
+                    
+                    if let diagnosticInfo = contentManager.diagnosticInfo {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Diagnostic Information")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text(diagnosticInfo)
+                                .font(.body)
+                                .lineLimit(5)
+                        }
+                    }
+                }
+                
+                Section(header: Text("API Information")) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Last API URL")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(lastAPIURL)
+                            .font(.body)
+                            .foregroundColor(.primary)
+                            .lineLimit(3)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Last API Error")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(lastAPIError)
+                            .font(.body)
+                            .foregroundColor(lastAPIError == "None" ? .green : .red)
+                            .lineLimit(5)
+                    }
+                }
+                
+                Section(header: Text("API Keys Check")) {
+                    Button("Check API Keys") {
+                        validateAPIKeys()
+                    }
+                    
+                    if !apiKeysStatus.isEmpty {
+                        ForEach(Array(apiKeysStatus.keys.sorted()), id: \.self) { key in
+                            HStack {
+                                Text(key)
+                                Spacer()
+                                Image(systemName: apiKeysStatus[key] == true ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                    .foregroundColor(apiKeysStatus[key] == true ? .green : .red)
+                            }
+                        }
+                    }
+                }
+                
+                Section(header: Text("API Connectivity Test")) {
+                    if isTestingAPI {
+                        ProgressView("Testing API connectivity...")
+                    } else {
+                        Button("Test API Connectivity") {
+                            testAPIConnectivity()
+                        }
+                    }
+                    
+                    if !apiConnectivity.isEmpty {
+                        ForEach(Array(apiConnectivity.keys.sorted()), id: \.self) { key in
+                            HStack {
+                                Text(key)
+                                Spacer()
+                                if apiConnectivity[key] == true {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.green)
+                                } else {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundColor(.red)
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                Section {
+                    Button("Clear Cache") {
+                        // Add cache clearing logic
+                    }
+                    .foregroundColor(.red)
+                }
+            }
+            .navigationTitle("Diagnostics")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Close") {
+                        onClose()
+                    }
+                }
+            }
+        }
+    }
+    
+    private func validateAPIKeys() {
+        let edamamKey = APIConfig.edamamAPIKey
+        let edamamAppID = APIConfig.edamamAppID
+        let spoonacularKey = APIConfig.spoonacularAPIKey
+        let unsplashKey = APIConfig.unsplashAPIKey
+        
+        apiKeysStatus["Edamam API Key"] = !edamamKey.isEmpty && !edamamKey.contains("YOUR_")
+        apiKeysStatus["Edamam App ID"] = !edamamAppID.isEmpty && !edamamAppID.contains("YOUR_")
+        apiKeysStatus["Spoonacular API Key"] = !spoonacularKey.isEmpty && !spoonacularKey.contains("YOUR_")
+        apiKeysStatus["Unsplash API Key"] = !unsplashKey.isEmpty && !unsplashKey.contains("YOUR_")
+    }
+    
+    private func testAPIConnectivity() {
+        // Set loading state
+        isTestingAPI = true
+        
+        // Run API connectivity test
+        Task {
+            apiConnectivity = await contentManager.testAPIConnectivity()
+            isTestingAPI = false
+        }
+    }
+}
+
+struct EmptyStateView: View {
+    let networkConnected: Bool
+    let errorMessage: String
+    let onRetry: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            if !networkConnected {
+                Image(systemName: "wifi.slash")
+                    .font(.system(size: 60))
+                    .foregroundColor(.red)
+                Text("No Internet Connection")
+                    .font(.title2)
+                    .bold()
+                Text("Check your connection and try again")
+                    .foregroundColor(.secondary)
+            } else if !errorMessage.isEmpty {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: 60))
+                    .foregroundColor(.orange)
+                Text("Error Loading Recommendations")
+                    .font(.title2)
+                    .bold()
+                Text(errorMessage)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+            } else {
+                Image(systemName: "fork.knife.circle")
+                    .font(.system(size: 60))
+                    .foregroundColor(.green)
+                Text("No Recommendations")
+                    .font(.title2)
+                    .bold()
+                Text("Try refreshing or changing your dietary preferences")
+                    .foregroundColor(.secondary)
+            }
+            
+            Button(action: onRetry) {
+                Text("Try Again")
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
+            }
+            .padding(.top, 10)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -101,21 +345,6 @@ struct CategoryButton: View {
                 .background(isSelected ? Color.green : Color(.systemGray6))
                 .foregroundColor(isSelected ? .white : .primary)
                 .cornerRadius(20)
-        }
-    }
-}
-
-struct EmptyStateView: View {
-    var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "fork.knife.circle")
-                .font(.system(size: 60))
-                .foregroundColor(.green)
-            Text("No Recommendations")
-                .font(.title2)
-                .bold()
-            Text("Try refreshing or changing your dietary preferences")
-                .foregroundColor(.secondary)
         }
     }
 }

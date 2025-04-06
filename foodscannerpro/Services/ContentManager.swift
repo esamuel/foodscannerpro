@@ -15,6 +15,7 @@ class ContentManager: ObservableObject {
     
     @Published private(set) var isLoading = false
     @Published private(set) var lastError: String?
+    @Published var diagnosticInfo: String?
     
     private let healthService = HealthService.shared
     private let userProfile = UserProfile.shared
@@ -85,67 +86,99 @@ class ContentManager: ObservableObject {
     // MARK: - Recommendation Content
     
     func getPersonalizedRecommendations() async throws -> [FoodRecommendation] {
-        // Use DispatchQueue.main to set the loading state
-        DispatchQueue.main.async {
-            self.isLoading = true
+        // Start loading
+        withAnimation {
+            isLoading = true
+            lastError = nil
+            diagnosticInfo = "Preparing to fetch recommendations..."
         }
         
         do {
-            // Capture needed data at the start
-            let healthProfile = await MainActor.run { self.healthService.healthProfile }
-            let restrictions = await MainActor.run { healthProfile.dietaryRestrictions }
+            // Check network connectivity
+            if !automatedService.isConnected {
+                diagnosticInfo = "Network connection unavailable"
+                throw NetworkError.noConnection
+            }
             
-            // Get recommendations from automated service
-            let recommendations = try await automatedService.generateAutomatedRecommendations(
-                for: healthProfile
-            )
+            // Check if health profile is properly configured
+            let healthProfile = healthService.healthProfile
+            diagnosticInfo = "Health profile loaded with goal: \(healthProfile.dietaryGoal)"
             
-            // Filter based on restrictions
-            let filteredRecommendations = recommendations.filter { recommendation in
-                // Check if the recommendation is compatible with all dietary restrictions
-                for restriction in restrictions {
-                    switch restriction {
-                    case .vegetarian:
-                        if recommendation.containsMeat { return false }
-                    case .vegan:
-                        if recommendation.containsAnimalProducts { return false }
-                    case .glutenFree:
-                        if recommendation.containsGluten { return false }
-                    case .dairyFree:
-                        if recommendation.containsDairy { return false }
-                    case .kosher:
-                        // For kosher, we'll check for pork and shellfish
-                        if recommendation.foodName.lowercased().contains("pork") ||
-                           recommendation.foodName.lowercased().contains("shellfish") {
-                            return false
-                        }
-                    case .halal:
-                        // For halal, we'll check for pork and alcohol
-                        if recommendation.foodName.lowercased().contains("pork") ||
-                           recommendation.foodName.lowercased().contains("alcohol") ||
-                           recommendation.foodName.lowercased().contains("wine") ||
-                           recommendation.foodName.lowercased().contains("beer") {
-                            return false
+            if healthProfile.dietaryGoal == .none {
+                diagnosticInfo = "No dietary goal specified in health profile"
+            }
+            
+            // Run API request in a detached task to avoid blocking the main thread
+            let recommendations = try await Task.detached {
+                // Get recommendations from automated service
+                return try await AutomatedContentService.shared.generateAutomatedRecommendations(
+                    for: healthProfile
+                )
+            }.value
+            
+            // Process the recommendations in another background task
+            let finalRecommendations = await Task.detached {
+                // Filter based on restrictions
+                let restrictions = healthProfile.dietaryRestrictions
+                let filtered = recommendations.filter { recommendation in
+                    // Check if the recommendation is compatible with all dietary restrictions
+                    for restriction in restrictions {
+                        switch restriction {
+                        case .vegetarian:
+                            if recommendation.containsMeat { return false }
+                        case .vegan:
+                            if recommendation.containsAnimalProducts { return false }
+                        case .glutenFree:
+                            if recommendation.containsGluten { return false }
+                        case .dairyFree:
+                            if recommendation.containsDairy { return false }
+                        case .kosher:
+                            // For kosher, we'll check for pork and shellfish
+                            if recommendation.foodName.lowercased().contains("pork") ||
+                               recommendation.foodName.lowercased().contains("shellfish") {
+                                return false
+                            }
+                        case .halal:
+                            // For halal, we'll check for pork and alcohol
+                            if recommendation.foodName.lowercased().contains("pork") ||
+                               recommendation.foodName.lowercased().contains("alcohol") ||
+                               recommendation.foodName.lowercased().contains("wine") ||
+                               recommendation.foodName.lowercased().contains("beer") {
+                                return false
+                            }
                         }
                     }
+                    return true
                 }
-                return true
-            }
+                
+                // Sort and limit results
+                return Array(filtered.prefix(10))
+            }.value
             
-            // Sort by relevance and limit to reasonable number
-            let finalResults = Array(filteredRecommendations.prefix(10))
+            // Success, update diagnostic info
+            if finalRecommendations.isEmpty {
+                diagnosticInfo = "No recommendations found that match your dietary profile"
+            } else {
+                diagnosticInfo = "Successfully retrieved \(finalRecommendations.count) recommendations"
+            }
             
             // Update state on main thread
-            DispatchQueue.main.async {
-                self.isLoading = false
+            withAnimation {
+                isLoading = false
             }
             
-            return finalResults
+            return finalRecommendations
         } catch {
-            // Handle error on main thread
-            DispatchQueue.main.async {
-                self.isLoading = false
-                self.lastError = error.localizedDescription
+            // Handle error and update diagnostic info
+            withAnimation {
+                isLoading = false
+                lastError = error.localizedDescription
+                
+                if let networkError = error as? NetworkError {
+                    diagnosticInfo = "Network error: \(networkError.localizedDescription)"
+                } else {
+                    diagnosticInfo = "Error: \(error.localizedDescription)"
+                }
             }
             throw error
         }
@@ -161,5 +194,40 @@ class ContentManager: ObservableObject {
     
     func getCachedImageData(for key: String) -> Data? {
         return imageCache.object(forKey: key as NSString) as Data?
+    }
+    
+    // MARK: - Testing API Connectivity
+    
+    func testAPIConnectivity() async -> [String: Bool] {
+        var results = [String: Bool]()
+        
+        // Test Edamam API
+        do {
+            let url = APIConfig.edamamSearchURL(query: "apple")
+            let (_, response) = try await URLSession.shared.data(from: url)
+            results["Edamam API"] = (response as? HTTPURLResponse)?.statusCode == 200
+        } catch {
+            results["Edamam API"] = false
+        }
+        
+        // Test Spoonacular API
+        do {
+            let url = APIConfig.spoonacularSearchURL(query: "apple")
+            let (_, response) = try await URLSession.shared.data(from: url)
+            results["Spoonacular API"] = (response as? HTTPURLResponse)?.statusCode == 200
+        } catch {
+            results["Spoonacular API"] = false
+        }
+        
+        // Test Unsplash API
+        do {
+            let url = APIConfig.unsplashFoodImageURL(query: "apple")
+            let (_, response) = try await URLSession.shared.data(from: url)
+            results["Unsplash API"] = (response as? HTTPURLResponse)?.statusCode == 200
+        } catch {
+            results["Unsplash API"] = false
+        }
+        
+        return results
     }
 } 

@@ -2,11 +2,19 @@ import Foundation
 import UIKit
 import CoreML
 import SwiftUI
+import Network
 
 class AutomatedContentService: ObservableObject {
     static let shared = AutomatedContentService()
     
     // MARK: - Properties
+    @Published var isConnected = true
+    @Published var lastNetworkError: String?
+    @Published var lastRequestURL: String?
+    
+    private let networkMonitor = NWPathMonitor()
+    private let networkQueue = DispatchQueue(label: "NetworkMonitor")
+    
     // Use APIConfig to get the keys instead of hardcoding them
     private var edamamAPIKey: String {
         return APIConfig.edamamAPIKey
@@ -24,23 +32,64 @@ class AutomatedContentService: ObservableObject {
         return APIConfig.unsplashAPIKey
     }
     
+    init() {
+        setupNetworkMonitoring()
+    }
+    
+    private func setupNetworkMonitoring() {
+        networkMonitor.pathUpdateHandler = { [weak self] path in
+            DispatchQueue.main.async {
+                self?.isConnected = path.status == .satisfied
+                print("Network status: \(path.status == .satisfied ? "Connected" : "Disconnected")")
+            }
+        }
+        networkMonitor.start(queue: networkQueue)
+    }
+    
     // MARK: - Food Data Fetching
     
     /// Automatically fetch and generate food recommendations based on health profile
     func generateAutomatedRecommendations(for profile: HealthProfile) async throws -> [FoodRecommendation] {
+        print("🔍 Generating recommendations for profile with dietary goal: \(profile.dietaryGoal)")
+        
+        guard isConnected else {
+            print("❌ Network is not connected")
+            throw NetworkError.noConnection
+        }
+        
         var recommendations: [FoodRecommendation] = []
         
         // Build API query parameters based on health profile
         let queryParams = buildQueryParameters(from: profile)
+        print("📝 Query parameters: \(queryParams)")
         
-        // Fetch recipes from Edamam API
-        let edamamRecipes = try await fetchEdamamRecipes(with: queryParams)
-        recommendations += edamamRecipes
+        do {
+            // Fetch recipes from Edamam API
+            print("🌐 Attempting to fetch from Edamam API...")
+            let edamamRecipes = try await fetchEdamamRecipes(with: queryParams)
+            print("✅ Successfully fetched \(edamamRecipes.count) recipes from Edamam")
+            recommendations += edamamRecipes
+        } catch {
+            print("❌ Edamam API error: \(error.localizedDescription)")
+            DispatchQueue.main.async {
+                self.lastNetworkError = "Edamam API: \(error.localizedDescription)"
+            }
+        }
         
-        // Fetch recipes from Spoonacular API as backup
-        let spoonacularRecipes = try await fetchSpoonacularRecipes(with: queryParams)
-        recommendations += spoonacularRecipes
+        do {
+            // Fetch recipes from Spoonacular API as backup
+            print("🌐 Attempting to fetch from Spoonacular API...")
+            let spoonacularRecipes = try await fetchSpoonacularRecipes(with: queryParams)
+            print("✅ Successfully fetched \(spoonacularRecipes.count) recipes from Spoonacular")
+            recommendations += spoonacularRecipes
+        } catch {
+            print("❌ Spoonacular API error: \(error.localizedDescription)")
+            DispatchQueue.main.async {
+                self.lastNetworkError = "Spoonacular API: \(error.localizedDescription)"
+            }
+        }
         
+        print("📋 Total recommendations generated: \(recommendations.count)")
         return recommendations
     }
     
@@ -117,11 +166,53 @@ class AutomatedContentService: ObservableObject {
         }
         
         urlComponents.queryItems = queryItems
+        guard let url = urlComponents.url else {
+            throw NetworkError.invalidURL
+        }
         
-        let (data, _) = try await URLSession.shared.data(from: urlComponents.url!)
-        let recipes = try JSONDecoder().decode(EdamamResponse.self, from: data)
+        print("🔗 Edamam API URL: \(url.absoluteString)")
+        DispatchQueue.main.async {
+            self.lastRequestURL = url.absoluteString
+        }
         
-        return try await convertEdamamToRecommendations(recipes.hits)
+        do {
+            // Create a URLRequest to include proper headers
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
+            
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            // Check for HTTP status code
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw NetworkError.invalidResponse
+            }
+            
+            print("📡 Edamam API Response Code: \(httpResponse.statusCode)")
+            
+            if httpResponse.statusCode < 200 || httpResponse.statusCode >= 300 {
+                // Log error response
+                if let errorText = String(data: data, encoding: .utf8) {
+                    print("❌ Edamam API Error: \(errorText)")
+                }
+                throw NetworkError.serverError(statusCode: httpResponse.statusCode)
+            }
+            
+            // Try to decode response
+            do {
+                let recipes = try JSONDecoder().decode(EdamamResponse.self, from: data)
+                return try await convertEdamamToRecommendations(recipes.hits)
+            } catch {
+                print("❌ JSON Decoding Error: \(error.localizedDescription)")
+                // Log the raw response for debugging
+                if let responseText = String(data: data, encoding: .utf8) {
+                    print("📄 Raw response: \(responseText.prefix(500))...")
+                }
+                throw NetworkError.decodingError(error.localizedDescription)
+            }
+        } catch {
+            throw error
+        }
     }
     
     private func fetchSpoonacularRecipes(with params: [String: String]) async throws -> [FoodRecommendation] {
@@ -138,11 +229,48 @@ class AutomatedContentService: ObservableObject {
         }
         
         urlComponents.queryItems = queryItems
+        guard let url = urlComponents.url else {
+            throw NetworkError.invalidURL
+        }
         
-        let (data, _) = try await URLSession.shared.data(from: urlComponents.url!)
-        let recipes = try JSONDecoder().decode(SpoonacularResponse.self, from: data)
+        print("🔗 Spoonacular API URL: \(url.absoluteString)")
+        DispatchQueue.main.async {
+            self.lastRequestURL = url.absoluteString
+        }
         
-        return try await convertSpoonacularToRecommendations(recipes.results)
+        do {
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
+            
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw NetworkError.invalidResponse
+            }
+            
+            print("📡 Spoonacular API Response Code: \(httpResponse.statusCode)")
+            
+            if httpResponse.statusCode < 200 || httpResponse.statusCode >= 300 {
+                if let errorText = String(data: data, encoding: .utf8) {
+                    print("❌ Spoonacular API Error: \(errorText)")
+                }
+                throw NetworkError.serverError(statusCode: httpResponse.statusCode)
+            }
+            
+            do {
+                let recipes = try JSONDecoder().decode(SpoonacularResponse.self, from: data)
+                return try await convertSpoonacularToRecommendations(recipes.results)
+            } catch {
+                print("❌ JSON Decoding Error: \(error.localizedDescription)")
+                if let responseText = String(data: data, encoding: .utf8) {
+                    print("📄 Raw response: \(responseText.prefix(500))...")
+                }
+                throw NetworkError.decodingError(error.localizedDescription)
+            }
+        } catch {
+            throw error
+        }
     }
     
     // MARK: - Image Fetching
@@ -306,4 +434,29 @@ struct UnsplashPhoto: Codable {
 
 struct UnsplashURLs: Codable {
     let regular: String
+}
+
+// MARK: - Error Types
+
+enum NetworkError: Error, LocalizedError {
+    case noConnection
+    case invalidURL
+    case invalidResponse
+    case serverError(statusCode: Int)
+    case decodingError(String)
+    
+    var errorDescription: String? {
+        switch self {
+        case .noConnection:
+            return "No internet connection available."
+        case .invalidURL:
+            return "Invalid URL."
+        case .invalidResponse:
+            return "Invalid response from server."
+        case .serverError(let statusCode):
+            return "Server error with status code: \(statusCode)"
+        case .decodingError(let description):
+            return "Failed to decode response: \(description)"
+        }
+    }
 } 

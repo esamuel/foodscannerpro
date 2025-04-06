@@ -2,15 +2,15 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>EDAMAM_API_KEY</key>
-    <string>YOUR_EDAMAM_API_KEY</string>
-    <key>EDAMAM_APP_ID</key>
-    <string>YOUR_EDAMAM_APP_ID</string>
-    <key>SPOONACULAR_API_KEY</key>
-    <string>YOUR_SPOONACULAR_API_KEY</string>
-    <key>USDA_API_KEY</key>
-    <string>YOUR_USDA_API_KEY</string>
-    <key>UNSPLASH_API_KEY</key>
-    <string>YOUR_UNSPLASH_API_KEY</string>
+	<key>EDAMAM_API_KEY</key>
+	<string>YOUR_EDAMAM_API_KEY</string>
+	<key>SPOONACULAR_API_KEY</key>
+	<string>c4d83ec5b1aa4e34b4f0d5ab1cee3596</string>
+	<key>EDAMAM_APP_ID</key>
+	<string>YOUR_EDAMAM_APP_ID</string>
+	<key>USDA_API_KEY</key>
+	<string>VkaeuJHCYAtXtD2eNbkj3Iu9snlQwuLGTPo0gYj4</string>
+	<key>UNSPLASH_API_KEY</key>
+	<string>TNObsUy137R4Z4S0IMWOQesxcywPRm2bKP3104EyREI</string>
 </dict>
-</plist> 
+</plist>
