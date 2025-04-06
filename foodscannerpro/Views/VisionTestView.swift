@@ -7,6 +7,7 @@ struct VisionTestView: View {
     @State private var selectedImage: UIImage?
     @State private var showingImagePicker = false
     @State private var showingRecognition = false
+    @StateObject private var feedbackManager = FeedbackManager.shared
     
     var body: some View {
         NavigationView {
@@ -51,10 +52,20 @@ struct VisionTestView: View {
             }
             .onChange(of: selectedImage) { oldValue, newImage in
                 if let image = newImage {
-                    classifier.analyzeImage(image)
+                    // Clear previous results before analyzing new image
+                    DispatchQueue.main.async {
+                        classifier.recognizedObjects = []
+                        classifier.isProcessing = true
+                    }
+                    
+                    // Add a small delay to ensure UI updates
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        classifier.analyzeImage(image)
+                    }
                 }
             }
         }
+        .environmentObject(feedbackManager)
     }
 }
 
@@ -84,7 +95,9 @@ struct ImagePicker: UIViewControllerRepresentable {
         
         func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
             if let image = info[.originalImage] as? UIImage {
-                parent.image = image
+                DispatchQueue.main.async {
+                    self.parent.image = image
+                }
             }
             parent.dismiss()
         }

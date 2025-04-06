@@ -332,11 +332,13 @@ struct MealRowView: View {
         case "Breakfast":
             return .orange
         case "Lunch":
-            return .green
+            return .yellow
         case "Dinner":
-            return .blue
-        case "Snack":
             return .purple
+        case "Snack":
+            return .green
+        case "Beverage":
+            return .blue
         default:
             return .gray
         }
@@ -347,13 +349,15 @@ struct MealRowView: View {
         
         switch type {
         case "Breakfast":
-            return "sunrise.fill"
+            return "sun.rise.fill"
         case "Lunch":
             return "sun.max.fill"
         case "Dinner":
             return "moon.stars.fill"
         case "Snack":
-            return "carrot.fill"
+            return "circle.grid.2x2.fill"
+        case "Beverage":
+            return "cup.and.saucer.fill"
         default:
             return "circle"
         }
@@ -453,7 +457,7 @@ struct AddMealView: View {
     @State private var foodItems: [TempFoodItem] = []
     @State private var showingAddFood = false
     
-    private let mealTypes = ["Breakfast", "Lunch", "Dinner", "Snack"]
+    private let mealTypes = ["Breakfast", "Lunch", "Dinner", "Snack", "Beverage"]
     
     var body: some View {
         NavigationView {
@@ -731,11 +735,13 @@ struct EnhancedMealDetailView: View {
         case "Breakfast":
             return .orange
         case "Lunch":
-            return .green
+            return .yellow
         case "Dinner":
-            return .blue
-        case "Snack":
             return .purple
+        case "Snack":
+            return .green
+        case "Beverage":
+            return .blue
         default:
             return .gray
         }
@@ -746,13 +752,15 @@ struct EnhancedMealDetailView: View {
         
         switch type {
         case "Breakfast":
-            return "sunrise.fill"
+            return "sun.rise.fill"
         case "Lunch":
             return "sun.max.fill"
         case "Dinner":
             return "moon.stars.fill"
         case "Snack":
-            return "carrot.fill"
+            return "circle.grid.2x2.fill"
+        case "Beverage":
+            return "cup.and.saucer.fill"
         default:
             return "circle"
         }
@@ -890,6 +898,7 @@ enum MealFilter: String, CaseIterable, Identifiable {
     case lunch = "Lunch"
     case dinner = "Dinner"
     case snack = "Snack"
+    case beverage = "Beverage"
     
     var id: String { self.rawValue }
 }

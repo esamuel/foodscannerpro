@@ -16,6 +16,7 @@ class FeedbackManager: ObservableObject {
     
     private let userDefaults = UserDefaults.standard
     private let feedbackKey = "foodRecognitionFeedback"
+    private let feedbackQueue = DispatchQueue(label: "com.foodscannerpro.feedbackQueue", attributes: .concurrent)
     
     private init() {
         loadFeedback()
@@ -30,7 +31,6 @@ class FeedbackManager: ObservableObject {
         }
         
         do {
-            // Store feedback for future model improvements
             let feedback = FeedbackEntry(
                 timestamp: Date(),
                 foodName: originalResult.name,
@@ -39,10 +39,8 @@ class FeedbackManager: ObservableObject {
                 additionalNotes: additionalNotes
             )
             
-            // Save to local storage
             try await saveFeedback(feedback)
             
-            // Update any relevant UI
             DispatchQueue.main.async {
                 self.isSubmitting = false
             }
@@ -64,47 +62,76 @@ class FeedbackManager: ObservableObject {
             feedback: feedback
         )
         
-        feedbackData.append(entry)
-        
-        // Save to UserDefaults
-        if let encoded = try? JSONEncoder().encode(feedbackData) {
-            userDefaults.set(encoded, forKey: feedbackKey)
+        // Use concurrent queue for background work, then update UI on main thread
+        feedbackQueue.async {
+            // Create a local copy to avoid race conditions
+            var currentFeedback = self.feedbackData
+            currentFeedback.append(entry)
+            
+            // Encode the data
+            if let encoded = try? JSONEncoder().encode(currentFeedback) {
+                // Save to user defaults
+                self.userDefaults.set(encoded, forKey: self.feedbackKey)
+                
+                // Update the published property on the main thread
+                DispatchQueue.main.async {
+                    self.feedbackData = currentFeedback
+                }
+            }
         }
     }
     
     func loadFeedback() {
-        if let data = userDefaults.data(forKey: feedbackKey),
-           let decoded = try? JSONDecoder().decode([FeedbackEntry].self, from: data) {
-            feedbackData = decoded
+        feedbackQueue.async {
+            if let data = self.userDefaults.data(forKey: self.feedbackKey),
+               let decoded = try? JSONDecoder().decode([FeedbackEntry].self, from: data) {
+                DispatchQueue.main.async {
+                    self.feedbackData = decoded
+                }
+            }
         }
     }
     
     private func saveFeedback(_ feedback: FeedbackEntry) async throws {
-        // Get the feedback file URL
-        let fileManager = FileManager.default
-        let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let feedbackFile = documentsPath.appendingPathComponent("recognition_feedback.json")
-        
-        // Load existing feedback
-        var existingFeedback: [FeedbackEntry] = []
-        if fileManager.fileExists(atPath: feedbackFile.path) {
-            let data = try Data(contentsOf: feedbackFile)
-            existingFeedback = try JSONDecoder().decode([FeedbackEntry].self, from: data)
-        }
-        
-        // Add new feedback
-        existingFeedback.append(feedback)
-        
-        // Save back to file
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        let data = try encoder.encode(existingFeedback)
-        try data.write(to: feedbackFile)
-        
-        // Also update the UserDefaults
-        feedbackData = existingFeedback
-        if let encoded = try? JSONEncoder().encode(feedbackData) {
-            userDefaults.set(encoded, forKey: feedbackKey)
+        return try await withCheckedThrowingContinuation { continuation in
+            feedbackQueue.async {
+                do {
+                    // Get the feedback file URL
+                    let fileManager = FileManager.default
+                    let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                    let feedbackFile = documentsPath.appendingPathComponent("recognition_feedback.json")
+                    
+                    // Load existing feedback
+                    var existingFeedback: [FeedbackEntry] = []
+                    if fileManager.fileExists(atPath: feedbackFile.path) {
+                        let data = try Data(contentsOf: feedbackFile)
+                        existingFeedback = try JSONDecoder().decode([FeedbackEntry].self, from: data)
+                    }
+                    
+                    // Add new feedback
+                    existingFeedback.append(feedback)
+                    
+                    // Save back to file
+                    let encoder = JSONEncoder()
+                    encoder.dateEncodingStrategy = .iso8601
+                    let data = try encoder.encode(existingFeedback)
+                    try data.write(to: feedbackFile)
+                    
+                    // Also update the UserDefaults and published property
+                    let finalFeedback = existingFeedback
+                    if let encoded = try? JSONEncoder().encode(finalFeedback) {
+                        self.userDefaults.set(encoded, forKey: self.feedbackKey)
+                        
+                        DispatchQueue.main.async {
+                            self.feedbackData = finalFeedback
+                        }
+                    }
+                    
+                    continuation.resume()
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
         }
     }
     

@@ -410,6 +410,80 @@ class AnalyticsService: ObservableObject {
             return dailyCalorieIntake
         }
     }
+    
+    private func calculateCalorieProgress(for meals: [Meal]) -> Double {
+        var totalCalories = 0
+        
+        for meal in meals {
+            let foodItems = meal.foodItems as? Set<FoodItem> ?? []
+            for item in foodItems {
+                totalCalories += Int(item.calories)
+            }
+        }
+        
+        let target = healthService.healthProfile.dailyCalorieTarget
+        return target > 0 ? Double(totalCalories) / Double(target) : 0
+    }
+    
+    private func calculateProteinProgress(for meals: [Meal]) -> Double {
+        var totalProtein = 0
+        
+        for meal in meals {
+            let foodItems = meal.foodItems as? Set<FoodItem> ?? []
+            for item in foodItems {
+                totalProtein += Int(item.protein)
+            }
+        }
+        
+        let target = healthService.healthProfile.dailyProteinTarget
+        return target > 0 ? Double(totalProtein) / Double(target) : 0
+    }
+    
+    private func calculateCarbProgress(for meals: [Meal]) -> Double {
+        var totalCarbs = 0
+        
+        for meal in meals {
+            let foodItems = meal.foodItems as? Set<FoodItem> ?? []
+            for item in foodItems {
+                totalCarbs += Int(item.carbs)
+            }
+        }
+        
+        let targetPercentage: Double
+        if healthService.healthProfile.dietaryGoal == .lowCarb {
+            targetPercentage = 0.2 // 20% of calories from carbs
+        } else {
+            targetPercentage = 0.5 // 50% of calories from carbs
+        }
+        
+        let dailyCalories = Double(healthService.healthProfile.dailyCalorieTarget)
+        let target = Int(dailyCalories * targetPercentage / 4) // 4 calories per gram of carbs
+        
+        return target > 0 ? Double(totalCarbs) / Double(target) : 0
+    }
+    
+    private func calculateFatProgress(for meals: [Meal]) -> Double {
+        var totalFat = 0
+        
+        for meal in meals {
+            let foodItems = meal.foodItems as? Set<FoodItem> ?? []
+            for item in foodItems {
+                totalFat += Int(item.fats)
+            }
+        }
+        
+        let targetPercentage: Double
+        if healthService.healthProfile.dietaryGoal == .highProtein {
+            targetPercentage = 0.25 // 25% of calories from fat
+        } else {
+            targetPercentage = 0.3 // 30% of calories from fat
+        }
+        
+        let dailyCalories = Double(healthService.healthProfile.dailyCalorieTarget)
+        let target = Int(dailyCalories * targetPercentage / 9) // 9 calories per gram of fat
+        
+        return target > 0 ? Double(totalFat) / Double(target) : 0
+    }
 }
 
 // MARK: - Data Models

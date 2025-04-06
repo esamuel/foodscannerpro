@@ -38,6 +38,62 @@ class RecognitionController: ObservableObject {
         // Implement your CoreML-based quick scan logic here
         return []
     }
+    
+    private func processRecognizedFood(_ food: String, confidence: Float) -> RecognizedFood {
+        let nutritionInfo = FoodNutritionInfo(
+            foodName: food,
+            calories: 100,
+            protein: 5,
+            carbs: 15,
+            fat: 3,
+            fiber: nil,
+            sugar: nil,
+            sodium: nil,
+            cholesterol: nil,
+            potassium: nil,
+            calcium: nil,
+            iron: nil,
+            vitaminA: nil,
+            vitaminC: nil,
+            servingSize: 100,
+            servingUnit: "g",
+            source: .estimated
+        )
+        
+        // Convert FoodNutritionInfo to FoodNutrition
+        let foodNutrition = FoodNutrition(
+            calories: nutritionInfo.calories,
+            protein: nutritionInfo.protein,
+            carbs: nutritionInfo.carbs,
+            fats: nutritionInfo.fat  // Note: using fat from FoodNutritionInfo for fats in FoodNutrition
+        )
+        
+        // Create AdditionalNutrition from the optional values
+        let additionalNutrition = AdditionalNutrition(
+            fiber: nutritionInfo.fiber,
+            sugar: nutritionInfo.sugar,
+            sodium: nutritionInfo.sodium,
+            cholesterol: nutritionInfo.cholesterol,
+            potassium: nutritionInfo.potassium,
+            calcium: nutritionInfo.calcium,
+            iron: nutritionInfo.iron,
+            vitaminA: nutritionInfo.vitaminA,
+            vitaminC: nutritionInfo.vitaminC,
+            servingSize: nutritionInfo.servingSize,
+            servingUnit: nutritionInfo.servingUnit
+        )
+        
+        return RecognizedFood(
+            name: food,
+            confidence: confidence,
+            boundingBox: .zero,
+            estimatedNutrition: foodNutrition,
+            additionalNutrition: additionalNutrition,
+            nutritionSource: nutritionInfo.source,
+            dietaryWarnings: [],
+            isRecommended: false
+        )
+    }
 }
 
 // MARK: - Supporting Types

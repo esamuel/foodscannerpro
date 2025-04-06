@@ -229,10 +229,19 @@ struct ProfileView: View {
             .navigationTitle("Profile")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Edit") {
+                        showingEditSheet = true
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Save") {
                         saveProfile()
                     }
                 }
+            }
+            .sheet(isPresented: $showingEditSheet) {
+                EditProfileView(userProfile: UserProfile.shared, isPresented: $showingEditSheet)
             }
             .alert("Success", isPresented: $showingSuccessMessage) {
                 Button("OK", role: .cancel) { }

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>EDAMAM_API_KEY</key>
+    <string>YOUR_EDAMAM_API_KEY</string>
+    <key>EDAMAM_APP_ID</key>
+    <string>YOUR_EDAMAM_APP_ID</string>
+    <key>SPOONACULAR_API_KEY</key>
+    <string>YOUR_SPOONACULAR_API_KEY</string>
+    <key>USDA_API_KEY</key>
+    <string>YOUR_USDA_API_KEY</string>
+    <key>UNSPLASH_API_KEY</key>
+    <string>YOUR_UNSPLASH_API_KEY</string>
+</dict>
+</plist> 

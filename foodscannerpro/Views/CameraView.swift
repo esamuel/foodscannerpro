@@ -92,7 +92,12 @@ struct CameraView: View {
             }
             .fullScreenCover(isPresented: $showingRecognition) {
                 if let image = capturedImage {
-                    FoodRecognitionView(image: image, classifier: FoodClassifier(), rootIsPresented: $showingRecognition, tabSelection: $tabSelection)
+                    FoodRecognitionView(
+                        classifier: FoodClassifier(),
+                        image: image,
+                        rootIsPresented: $showingRecognition,
+                        tabSelection: $tabSelection
+                    )
                 }
             }
             .sheet(isPresented: $isGalleryPickerPresented) {

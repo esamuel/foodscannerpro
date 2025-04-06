@@ -21,6 +21,9 @@ struct ContentView: View {
     @State private var showingFeatureTour = false
     @AppStorage("hasCompletedFeatureTour") private var hasCompletedFeatureTour = false
     @State private var showVisionTest = false
+    @State private var showingSaveSuccess = false
+    @State private var showingEditSheet = false
+    @State private var selectedMealType = "Snack"
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -243,7 +246,7 @@ struct LegacyImagePicker: UIViewControllerRepresentable {
 struct HomeView: View {
     @State private var searchText = ""
     @State private var showingImagePicker = false
-    @State private var showingLegacyPicker = true
+    @State private var showingLegacyPicker = false
     @State private var searchResults: [String] = []
     @State private var isSearching = false
     @State private var selectedImage: UIImage?
@@ -432,8 +435,8 @@ struct HomeView: View {
         }
         .fullScreenCover(isPresented: $showingRecognition) {
             FoodRecognitionView(
-                image: selectedImage ?? UIImage(),
                 classifier: FoodClassifier(),
+                image: selectedImage ?? UIImage(),
                 rootIsPresented: $showingRecognition,
                 tabSelection: $tabSelection
             )
@@ -593,9 +596,11 @@ class FoodClassifier: ObservableObject {
     }
     
     func analyzeImage(_ image: UIImage) {
-        isProcessing = true
-        recognizedObjects.removeAll()
-        healthRecommendations = healthService.generateRecommendations()
+        DispatchQueue.main.async {
+            self.isProcessing = true
+            self.recognizedObjects.removeAll()
+            self.healthRecommendations = self.healthService.generateRecommendations()
+        }
         
         // Add a small delay to allow UI to update before starting processing
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -634,16 +639,18 @@ class FoodClassifier: ObservableObject {
                     adjustableObservations.sort { $0.confidence > $1.confidence }
                     
                     // Step 5: Process the results
-                        DispatchQueue.main.async {
-                        if !adjustableObservations.isEmpty {
-                            self.processObservations(Array(adjustableObservations.prefix(5)))
-                        } else {
-                            // Convert observations for backup processing
-                            let originalObservations = observations.prefix(10).map { observation in
-                                VNClassificationObservation(identifier: observation.identifier, confidence: observation.confidence)
-                            }
-                            self.tryBackupRecognition(originalObservations)
+                    if !adjustableObservations.isEmpty {
+                        self.processObservations(Array(adjustableObservations.prefix(5)))
+                    } else {
+                        // Convert observations for backup processing
+                        let originalObservations = observations.prefix(10).map { observation in
+                            VNClassificationObservation(identifier: observation.identifier, confidence: observation.confidence)
                         }
+                        self.tryBackupRecognition(originalObservations)
+                    }
+                } else {
+                    DispatchQueue.main.async {
+                        self.isProcessing = false
                     }
                 }
             } catch {
@@ -698,10 +705,14 @@ class FoodClassifier: ObservableObject {
         }
         
         // Wait for all nutrition lookups to complete
-        processingGroup.notify(queue: .main) {
-            // Sort by confidence
-            self.recognizedObjects = tempRecognizedObjects.sorted(by: { $0.confidence > $1.confidence })
-            self.isProcessing = false
+        processingGroup.notify(queue: .main) { [weak self] in
+            guard let self = self else { return }
+            
+            // Sort by confidence and update on main thread
+            DispatchQueue.main.async {
+                self.recognizedObjects = tempRecognizedObjects.sorted(by: { $0.confidence > $1.confidence })
+                self.isProcessing = false
+            }
         }
     }
 
@@ -713,14 +724,15 @@ class FoodClassifier: ObservableObject {
         self.nutritionService.getNutritionInfo(for: name) { result in
             switch result {
             case .success(let nutritionInfo):
+                // Create FoodNutrition object directly
                 let foodNutrition = FoodNutrition(
-                    calories: Double(nutritionInfo.calories),
+                    calories: nutritionInfo.calories,
                     protein: nutritionInfo.protein,
                     carbs: nutritionInfo.carbs,
                     fats: nutritionInfo.fat
                 )
                 
-                let additionalNutrition = self.createAdditionalNutrition(from: nutritionInfo.toNutritionInfo())
+                let additionalNutrition = self.createAdditionalNutrition(from: nutritionInfo)
                 
                 let warnings = self.healthService.checkForWarnings(foodName: name)
                 let isRecommended = self.isRecommendedFood(name)
@@ -763,7 +775,7 @@ class FoodClassifier: ObservableObject {
         )
         
         // Create additional nutrition info
-        let additionalNutrition = self.createAdditionalNutrition(from: nutritionInfo.toNutritionInfo())
+        let additionalNutrition = self.createAdditionalNutrition(from: nutritionInfo)
         
         // Check for dietary warnings
         let warnings = self.healthService.checkForWarnings(foodName: nutritionInfo.foodName)
@@ -785,19 +797,19 @@ class FoodClassifier: ObservableObject {
         )
     }
     
-    private func createAdditionalNutrition(from nutritionInfo: NutritionInfo) -> AdditionalNutrition {
+    private func createAdditionalNutrition(from nutritionInfo: FoodNutritionInfo) -> AdditionalNutrition {
         return AdditionalNutrition(
             fiber: nutritionInfo.fiber,
             sugar: nutritionInfo.sugar,
-            sodium: nutritionInfo.minerals["sodium"],
-            cholesterol: nutritionInfo.minerals["cholesterol"],
-            potassium: nutritionInfo.minerals["potassium"],
-            calcium: nutritionInfo.minerals["calcium"],
-            iron: nutritionInfo.minerals["iron"],
-            vitaminA: nutritionInfo.vitamins["A"],
-            vitaminC: nutritionInfo.vitamins["C"],
-            servingSize: nil, // These are not part of NutritionInfo
-            servingUnit: nil  // These are not part of NutritionInfo
+            sodium: nutritionInfo.sodium,
+            cholesterol: nutritionInfo.cholesterol,
+            potassium: nutritionInfo.potassium,
+            calcium: nutritionInfo.calcium,
+            iron: nutritionInfo.iron,
+            vitaminA: nutritionInfo.vitaminA,
+            vitaminC: nutritionInfo.vitaminC,
+            servingSize: nutritionInfo.servingSize,
+            servingUnit: nutritionInfo.servingUnit
         )
     }
     
@@ -1077,9 +1089,14 @@ class FoodClassifier: ObservableObject {
         }
         
         // Wait for all backup nutrition lookups to complete
-        processingGroup.notify(queue: .main) {
-            self.recognizedObjects = backupObjects.sorted(by: { $0.confidence > $1.confidence })
-            self.isProcessing = false
+        processingGroup.notify(queue: .main) { [weak self] in
+            guard let self = self else { return }
+            
+            // Update UI on the main thread
+            DispatchQueue.main.async {
+                self.recognizedObjects = backupObjects.sorted(by: { $0.confidence > $1.confidence })
+                self.isProcessing = false
+            }
         }
     }
 
@@ -1091,14 +1108,15 @@ class FoodClassifier: ObservableObject {
         self.nutritionService.getNutritionInfo(for: name) { result in
             switch result {
             case .success(let nutritionInfo):
+                // Create FoodNutrition object directly
                 let foodNutrition = FoodNutrition(
-                    calories: Double(nutritionInfo.calories),
+                    calories: nutritionInfo.calories,
                     protein: nutritionInfo.protein,
                     carbs: nutritionInfo.carbs,
                     fats: nutritionInfo.fat
                 )
                 
-                let additionalNutrition = self.createAdditionalNutrition(from: nutritionInfo.toNutritionInfo())
+                let additionalNutrition = self.createAdditionalNutrition(from: nutritionInfo)
                 let warnings = self.healthService.checkForWarnings(foodName: name)
                 let isRecommended = self.isRecommendedFood(name)
                 let recommendationReason = self.getRecommendationReason(name)
@@ -1164,6 +1182,39 @@ class FoodClassifier: ObservableObject {
             isRecommended: isRecommended,
             recommendationReason: recommendationReason
         )
+    }
+    
+    func generateRecommendations() -> [FoodRecommendation] {
+        let recommendation = FoodRecommendation(
+            id: UUID(),
+            foodName: "Healthy Salad",
+            category: .all,
+            nutritionInfo: FoodNutritionInfo(
+                foodName: "Healthy Salad",
+                calories: 250,
+                protein: 8,
+                carbs: 20,
+                fat: 15,
+                fiber: 5,
+                sugar: 3,
+                sodium: 200,
+                cholesterol: 0,
+                potassium: 400,
+                calcium: 50,
+                iron: 2,
+                vitaminA: 1000,
+                vitaminC: 60,
+                servingSize: 100,
+                servingUnit: "g",
+                source: .estimated
+            ),
+            reason: "Balanced nutrition",
+            image: "salad",
+            dietaryWarnings: [],
+            isRecommended: true,
+            recommendationReason: "Rich in vitamins and minerals"
+        )
+        return [recommendation]
     }
 }
 
@@ -1269,20 +1320,36 @@ struct AdditionalNutrition {
     }
 }
 
+struct ImageDisplayView: UIViewRepresentable {
+    let image: UIImage
+    
+    func makeUIView(context: Context) -> UIImageView {
+        let imageView = UIImageView()
+        imageView.contentMode = .scaleAspectFill
+        imageView.clipsToBounds = true
+        return imageView
+    }
+    
+    func updateUIView(_ uiView: UIImageView, context: Context) {
+        uiView.image = image
+    }
+}
+
 struct FoodRecognitionView: View {
     @ObservedObject var classifier: FoodClassifier
     @State private var image: UIImage
     @State private var showingSaveSuccess = false
     @State private var showingEditSheet = false
+    @State private var selectedMealType = "Snack"
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.dismiss) private var dismiss
     @StateObject private var feedbackManager = FeedbackManager.shared
     @Binding var rootIsPresented: Bool
     @Binding var tabSelection: Int
     
-    init(image: UIImage, classifier: FoodClassifier, rootIsPresented: Binding<Bool>? = nil, tabSelection: Binding<Int>? = nil) {
-        self.image = image
+    init(classifier: FoodClassifier, image: UIImage, rootIsPresented: Binding<Bool>? = nil, tabSelection: Binding<Int>? = nil) {
         self.classifier = classifier
+        self.image = image
         self._image = State(initialValue: image)
         self._rootIsPresented = rootIsPresented != nil ? rootIsPresented! : .constant(false)
         self._tabSelection = tabSelection != nil ? tabSelection! : .constant(0)
@@ -1291,13 +1358,13 @@ struct FoodRecognitionView: View {
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(spacing: 20) {
+                VStack(spacing: 16) {
                     // Image preview
                     Image(uiImage: image)
                         .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .cornerRadius(15)
-                        .padding(.horizontal)
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity)
+                        .background(Color(.systemBackground))
                     
                     // Processing indicator
                     if classifier.isProcessing {
@@ -1323,7 +1390,6 @@ struct FoodRecognitionView: View {
                                 .foregroundColor(.secondary)
                                 .multilineTextAlignment(.center)
                             
-                            // Add a button to go back
                             Button {
                                 dismissToHome()
                             } label: {
@@ -1341,8 +1407,91 @@ struct FoodRecognitionView: View {
                     } else {
                         // Action buttons
                         HStack(spacing: 20) {
-                            Button {
-                                saveToHistory()
+                            Menu {
+                                Button {
+                                    selectedMealType = "Breakfast"
+                                    saveToHistory()
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "sun.rise.fill")
+                                            .foregroundColor(.orange)
+                                        Text("Breakfast")
+                                            .foregroundColor(.primary)
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.vertical, 8)
+                                    .padding(.horizontal)
+                                    .background(Color.orange.opacity(0.2))
+                                    .cornerRadius(8)
+                                }
+                                
+                                Button {
+                                    selectedMealType = "Lunch"
+                                    saveToHistory()
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "sun.max.fill")
+                                            .foregroundColor(.yellow)
+                                        Text("Lunch")
+                                            .foregroundColor(.primary)
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.vertical, 8)
+                                    .padding(.horizontal)
+                                    .background(Color.yellow.opacity(0.2))
+                                    .cornerRadius(8)
+                                }
+                                
+                                Button {
+                                    selectedMealType = "Dinner"
+                                    saveToHistory()
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "moon.stars.fill")
+                                            .foregroundColor(.purple)
+                                        Text("Dinner")
+                                            .foregroundColor(.primary)
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.vertical, 8)
+                                    .padding(.horizontal)
+                                    .background(Color.purple.opacity(0.2))
+                                    .cornerRadius(8)
+                                }
+                                
+                                Button {
+                                    selectedMealType = "Snack"
+                                    saveToHistory()
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "circle.grid.2x2.fill")
+                                            .foregroundColor(.green)
+                                        Text("Snack")
+                                            .foregroundColor(.primary)
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.vertical, 8)
+                                    .padding(.horizontal)
+                                    .background(Color.green.opacity(0.2))
+                                    .cornerRadius(8)
+                                }
+
+                                Button {
+                                    selectedMealType = "Beverage"
+                                    saveToHistory()
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "cup.and.saucer.fill")
+                                            .foregroundColor(.blue)
+                                        Text("Beverage")
+                                            .foregroundColor(.primary)
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.vertical, 8)
+                                    .padding(.horizontal)
+                                    .background(Color.blue.opacity(0.2))
+                                    .cornerRadius(8)
+                                }
                             } label: {
                                 VStack {
                                     Image(systemName: "square.and.arrow.down")
@@ -1382,43 +1531,8 @@ struct FoodRecognitionView: View {
                             }
                         }
                         .padding(.horizontal)
-                        
-                        // Health recommendations
-                        if !classifier.healthRecommendations.isEmpty {
-                            VStack(alignment: .leading, spacing: 10) {
-                                Text("Recommendations")
-                                    .font(.headline)
-                                    .padding(.horizontal)
-                                
-                                ScrollView(.horizontal, showsIndicators: false) {
-                                    HStack(spacing: 15) {
-                                        ForEach(classifier.healthRecommendations) { recommendation in
-                                            VStack(alignment: .leading, spacing: 8) {
-                                                HStack {
-                                                    Image(systemName: "leaf.fill")
-                                                        .foregroundColor(.green)
-                                                    Text(recommendation.foodName)
-                                                        .font(.headline)
-                                                }
-                                                
-                                                Text(recommendation.reason)
-                                                    .font(.caption)
-                                                    .foregroundColor(.secondary)
-                                                    .lineLimit(2)
-                                            }
-                                            .padding()
-                                            .frame(width: 200)
-                                            .background(Color(.systemGray6))
-                                            .cornerRadius(10)
-                                        }
-                                    }
-                                    .padding(.horizontal)
-                                }
-                            }
-                        }
                     }
                 }
-                .padding(.vertical)
             }
             .navigationTitle("Food Recognition")
             .navigationBarTitleDisplayMode(.inline)
@@ -1462,7 +1576,8 @@ struct FoodRecognitionView: View {
         let meal = Meal(context: viewContext)
         meal.id = UUID()
         meal.date = Date()
-        meal.name = "Meal \(Date().formatted(date: .abbreviated, time: .shortened))"
+        meal.type = selectedMealType
+        meal.name = "\(selectedMealType) \(Date().formatted(date: .abbreviated, time: .shortened))"
         
         // Save each recognized food item
         for recognizedFood in classifier.recognizedObjects {
@@ -1536,7 +1651,19 @@ struct FoodItemCard: View {
     
     init(food: RecognizedFood) {
         self.food = food
-        self._localFood = State(initialValue: food)
+        // Create a deep copy to avoid reference issues
+        self._localFood = State(initialValue: RecognizedFood(
+            name: food.name,
+            confidence: food.confidence,
+            boundingBox: food.boundingBox,
+            estimatedNutrition: food.estimatedNutrition,
+            additionalNutrition: food.additionalNutrition,
+            nutritionSource: food.nutritionSource,
+            dietaryWarnings: food.dietaryWarnings,
+            isRecommended: food.isRecommended,
+            recommendationReason: food.recommendationReason,
+            userFeedback: food.userFeedback
+        ))
     }
     
     var body: some View {
@@ -1551,6 +1678,8 @@ struct FoodItemCard: View {
                     .foregroundColor(.secondary)
                 
                 Button(action: {
+                    // Refresh local food state before showing feedback sheet
+                    refreshLocalFood()
                     showingFeedbackSheet = true
                 }) {
                     Image(systemName: "exclamationmark.bubble")
@@ -1608,7 +1737,7 @@ struct FoodItemCard: View {
                 HStack(spacing: 30) {
                     NutritionRow(title: "Protein", value: Int(food.estimatedNutrition.protein), unit: "g")
                     NutritionRow(title: "Carbs", value: Int(food.estimatedNutrition.carbs), unit: "g")
-                    NutritionRow(title: "Fat", value: Int(food.estimatedNutrition.fats), unit: "g")  // Changed from Fats to Fat
+                    NutritionRow(title: "Fat", value: Int(food.estimatedNutrition.fats), unit: "g")
                 }
                 
                 // Show more details button
@@ -1701,8 +1830,24 @@ struct FoodItemCard: View {
             .cornerRadius(15)
         }
         .padding(.horizontal)
-        .sheet(isPresented: $showingFeedbackSheet) {
+        .sheet(isPresented: $showingFeedbackSheet, onDismiss: {
+            // Refresh local food state when feedback sheet is dismissed
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                refreshLocalFood()
+            }
+        }) {
             FeedbackView(food: food, localFood: $localFood)
+        }
+    }
+    
+    private func refreshLocalFood() {
+        // Look up the latest feedback for this food in the feedback manager
+        if let latestFeedback = feedbackManager.feedbackData.last(where: { $0.foodName == food.name }) {
+            DispatchQueue.main.async {
+                var updatedFood = self.localFood
+                updatedFood.userFeedback = latestFeedback.feedback
+                self.localFood = updatedFood
+            }
         }
     }
 }
@@ -1752,6 +1897,22 @@ extension UIImage {
         guard let cgImage = cgImage?.cropping(to: rect) else { return nil }
         return UIImage(cgImage: cgImage)
     }
+    
+    func cropBlackEdges() -> UIImage? {
+        guard let cgImage = self.cgImage else { return nil }
+        let contextImage = UIImage(cgImage: cgImage)
+        let contextSize = contextImage.size
+        
+        // Calculate crop dimensions
+        let cropWidth = contextSize.width
+        let cropHeight = contextSize.height
+        
+        // Create the crop rect
+        let rect = CGRect(x: 0, y: 0, width: cropWidth, height: cropHeight)
+        
+        guard let imageRef = cgImage.cropping(to: rect) else { return nil }
+        return UIImage(cgImage: imageRef, scale: self.scale, orientation: self.imageOrientation)
+    }
 }
 
 struct ImagePreviewView: View {
@@ -1769,8 +1930,12 @@ struct ImagePreviewView: View {
             VStack {
                 Image(uiImage: image)
                     .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .padding()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: UIScreen.main.bounds.width)
+                    .clipped()
+                    .cornerRadius(15)
+                    .padding(.horizontal)
                 
                 HStack(spacing: 40) {
                     Button {
@@ -1840,8 +2005,8 @@ struct ImagePreviewView: View {
         }
         .fullScreenCover(isPresented: $showingRecognition) {
             FoodRecognitionView(
-                image: image,
                 classifier: FoodClassifier(),
+                image: image,
                 rootIsPresented: $showingRecognition,
                 tabSelection: $tabSelection
             )
@@ -1868,8 +2033,56 @@ struct MealDetailView: View {
     @State private var showingDeleteAlert = false
     @State private var editMode = EditMode.inactive
     
+    var mealTypeIcon: String {
+        switch meal.type {
+        case "Breakfast":
+            return "sun.rise.fill"
+        case "Lunch":
+            return "sun.max.fill"
+        case "Dinner":
+            return "moon.stars.fill"
+        case "Snack":
+            return "circle.grid.2x2.fill"
+        case "Beverage":
+            return "cup.and.saucer.fill"
+        default:
+            return "circle.fill"
+        }
+    }
+    
+    var mealTypeColor: Color {
+        switch meal.type {
+        case "Breakfast":
+            return .orange
+        case "Lunch":
+            return .yellow
+        case "Dinner":
+            return .purple
+        case "Snack":
+            return .green
+        case "Beverage":
+            return .blue
+        default:
+            return .gray
+        }
+    }
+    
     var body: some View {
         List {
+            Section {
+                HStack {
+                    Image(systemName: mealTypeIcon)
+                        .foregroundColor(mealTypeColor)
+                    Text(meal.type ?? "Unknown Type")
+                        .foregroundColor(mealTypeColor)
+                    Spacer()
+                    if let date = meal.date {
+                        Text(date.formatted(date: .abbreviated, time: .shortened))
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            
             let foodItems = Array(meal.foodItems as? Set<FoodItem> ?? [])
             ForEach(foodItems, id: \.id) { item in
                 VStack(alignment: .leading, spacing: 10) {
@@ -2061,22 +2274,8 @@ struct FeedbackView: View {
                 
                 Section {
                     Button("Submit Feedback") {
-                        // Save feedback
-                        feedbackManager.addFeedback(
-                            for: food,
-                            feedback: feedbackType,
-                            correctName: feedbackType != .correct ? correctFoodName : nil
-                        )
-                        
-                        // Update local food with feedback
-                        localFood.userFeedback = feedbackType
-                        
-                        showingThankYou = true
-                        
-                        // Dismiss after a short delay
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                            dismiss()
-                        }
+                        // Safely update on main thread
+                        submitFeedback()
                     }
                     .frame(maxWidth: .infinity)
                     .foregroundColor(.white)
@@ -2103,6 +2302,31 @@ struct FeedbackView: View {
                     }
                 }
             )
+        }
+    }
+    
+    private func submitFeedback() {
+        // First save feedback to manager
+        feedbackManager.addFeedback(
+            for: food,
+            feedback: feedbackType,
+            correctName: feedbackType != .correct ? correctFoodName : nil
+        )
+        
+        // Then update local UI state
+        DispatchQueue.main.async {
+            // Create a new copy to avoid reference issues
+            var updatedFood = localFood
+            updatedFood.userFeedback = feedbackType
+            self.localFood = updatedFood
+            
+            // Show thank you and dismiss
+            self.showingThankYou = true
+            
+            // Dismiss after a short delay
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                self.dismiss()
+            }
         }
     }
 }

@@ -22,7 +22,7 @@ class HealthService: ObservableObject {
     
     private init() {
         // Initialize with default profile
-        self.healthProfile = HealthProfile()
+        self.healthProfile = HealthProfile.default
         
         // Try to load saved profile
         loadProfileFromDisk()
@@ -111,19 +111,26 @@ class HealthService: ObservableObject {
                     case .shellfish:
                         message = "\(foodName) may contain shellfish, which can cause allergic reactions."
                         alternative = "Avoid this food and check for cross-contamination."
-                    default:
+                    case .hypertension:
+                        message = "\(foodName) may contain high sodium, which can affect blood pressure."
+                        alternative = "Consider low-sodium alternatives."
+                    case .none:
                         message = "\(foodName) may not be suitable for your dietary needs."
                         alternative = nil
                     }
                     
                     let warning = DietaryWarning(
-                        foodName: foodName,
-                        condition: condition,
+                        id: UUID(),
+                        condition: getDietaryCondition(from: condition),
+                        warningLevel: condition == .nutAllergy || condition == .shellfish ? .severe : .moderate,
                         message: message,
                         suggestedAlternative: alternative
                     )
                     
-                    warnings.append(warning)
+                    // Only add if not already added for this condition
+                    if !warnings.contains(where: { $0.condition == getDietaryCondition(from: condition) }) {
+                        warnings.append(warning)
+                    }
                     break // Only add one warning per condition
                 }
             }
@@ -147,14 +154,15 @@ class HealthService: ObservableObject {
                             }
                             
                             let warning = DietaryWarning(
-                                foodName: foodName,
-                                condition: condition,
+                                id: UUID(),
+                                condition: getDietaryCondition(from: condition),
+                                warningLevel: condition == .nutAllergy || condition == .shellfish ? .severe : .moderate,
                                 message: message,
                                 suggestedAlternative: alternative
                             )
                             
                             // Only add if not already added for this condition
-                            if !warnings.contains(where: { $0.condition == condition }) {
+                            if !warnings.contains(where: { $0.condition == getDietaryCondition(from: condition) }) {
                                 warnings.append(warning)
                             }
                             
@@ -178,10 +186,33 @@ class HealthService: ObservableObject {
         // Add recommendations for the goal
         for food in goal.recommendedFoods.prefix(3) {
             let recommendation = FoodRecommendation(
+                id: UUID(),
                 foodName: food.capitalized,
+                category: RecommendationCategory.all,
+                nutritionInfo: FoodNutritionInfo(
+                    foodName: food.capitalized,
+                    calories: 0,
+                    protein: 0,
+                    carbs: 0,
+                    fat: 0,
+                    fiber: nil,
+                    sugar: nil,
+                    sodium: nil,
+                    cholesterol: nil,
+                    potassium: nil,
+                    calcium: nil,
+                    iron: nil,
+                    vitaminA: nil,
+                    vitaminC: nil,
+                    servingSize: nil,
+                    servingUnit: nil,
+                    source: .estimated
+                ),
                 reason: "Supports your \(goal.rawValue) goal",
-                nutritionalBenefits: getNutritionalBenefits(for: food),
-                goal: goal
+                image: food.lowercased().replacingOccurrences(of: " ", with: "_"),
+                dietaryWarnings: [],
+                isRecommended: true,
+                recommendationReason: getNutritionalBenefits(for: food)
             )
             recommendations.append(recommendation)
         }
@@ -197,10 +228,33 @@ class HealthService: ObservableObject {
             
             for food in recommendedFoods.prefix(2) {
                 let recommendation = FoodRecommendation(
+                    id: UUID(),
                     foodName: food.capitalized,
+                    category: RecommendationCategory.all,
+                    nutritionInfo: FoodNutritionInfo(
+                        foodName: food.capitalized,
+                        calories: 0,
+                        protein: 0,
+                        carbs: 0,
+                        fat: 0,
+                        fiber: nil,
+                        sugar: nil,
+                        sodium: nil,
+                        cholesterol: nil,
+                        potassium: nil,
+                        calcium: nil,
+                        iron: nil,
+                        vitaminA: nil,
+                        vitaminC: nil,
+                        servingSize: nil,
+                        servingUnit: nil,
+                        source: .estimated
+                    ),
                     reason: "Beneficial for \(condition.rawValue)",
-                    nutritionalBenefits: getNutritionalBenefits(for: food),
-                    goal: goal
+                    image: food.lowercased().replacingOccurrences(of: " ", with: "_"),
+                    dietaryWarnings: [],
+                    isRecommended: true,
+                    recommendationReason: getNutritionalBenefits(for: food)
                 )
                 
                 // Only add if not already added
@@ -220,7 +274,7 @@ class HealthService: ObservableObject {
             return ["non-starchy vegetables", "whole grains", "lean protein", "nuts", "berries"]
         case .heartDisease, .highCholesterol:
             return ["salmon", "oats", "berries", "nuts", "olive oil", "avocado", "leafy greens"]
-        case .highBloodPressure:
+        case .highBloodPressure, .hypertension:
             return ["bananas", "leafy greens", "berries", "beets", "yogurt", "oats"]
         case .celiacDisease, .gluten:
             return ["rice", "quinoa", "corn", "potatoes", "gluten-free oats"]
@@ -232,6 +286,29 @@ class HealthService: ObservableObject {
             return ["chicken", "beef", "tofu", "legumes", "eggs"]
         case .none:
             return []
+        }
+    }
+    
+    /// Convert HealthCondition to DietaryCondition
+    private func getDietaryCondition(from condition: HealthCondition) -> DietaryCondition {
+        switch condition {
+        case .diabetes:
+            return .highSugar
+        case .heartDisease, .highCholesterol:
+            return .highFat
+        case .highBloodPressure, .hypertension:
+            return .highSodium
+        case .celiacDisease, .gluten:
+            return .gluten
+        case .lactoseIntolerance:
+            return .dairy
+        case .nutAllergy:
+            return .nuts
+        case .shellfish:
+            return .shellfish
+        case .none:
+            // This should never happen as we filter out .none earlier
+            return .highSodium // Default case
         }
     }
     
@@ -292,16 +369,16 @@ class HealthService: ObservableObject {
                 print("Loaded health profile from disk")
             } else {
                 // Create default profile if none exists
-                self.healthProfile = HealthProfile()
-                self.healthProfile.calculateRecommendedCalories()
+                self.healthProfile = HealthProfile.default
+                let _ = self.healthProfile.calculateRecommendedCalories()
                 saveProfileToDisk()
                 print("Created new default health profile")
             }
         } catch {
             print("Failed to load health profile: \(error.localizedDescription)")
             // If loading fails, start with default profile
-            self.healthProfile = HealthProfile()
-            self.healthProfile.calculateRecommendedCalories()
+            self.healthProfile = HealthProfile.default
+            let _ = self.healthProfile.calculateRecommendedCalories()
         }
     }
     
@@ -413,7 +490,7 @@ class HealthService: ObservableObject {
             return ["non-starchy vegetables", "whole grains", "lean protein", "nuts", "berries"]
         case .heartDisease, .highCholesterol:
             return ["salmon", "oats", "berries", "nuts", "olive oil", "avocado", "leafy greens"]
-        case .highBloodPressure:
+        case .highBloodPressure, .hypertension:
             return ["bananas", "leafy greens", "berries", "beets", "yogurt", "oats"]
         case .celiacDisease, .gluten:
             return ["rice", "quinoa", "corn", "potatoes", "gluten-free oats"]
